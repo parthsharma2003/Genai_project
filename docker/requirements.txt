@@ -1,0 +1,6 @@
+google-genai>=0.12.0
+requests
+unidiff
+tenacity
+markdown
+google-generativeai
