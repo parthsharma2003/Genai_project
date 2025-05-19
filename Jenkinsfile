@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------
-   Jenkinsfile – Release‐notes pipeline (COMMIT_DIFF hack)
+   Jenkinsfile – Release-notes pipeline (COMMIT_DIFF hack)
 ------------------------------------------------------------------*/
 pipeline {
   agent any
@@ -18,7 +18,6 @@ pipeline {
   }
 
   stages {
-    /* 1) Fresh checkout */
     stage('Checkout') {
       steps {
         deleteDir()
@@ -26,7 +25,6 @@ pipeline {
       }
     }
 
-    /* 2) Build the Docker image */
     stage('Build Agent') {
       steps {
         sh '''
@@ -36,7 +34,6 @@ pipeline {
       }
     }
 
-    /* 3) Run the agent – now with a non‐empty COMMIT_DIFF */
     stage('Generate Changelog') {
       steps {
         script {
@@ -45,15 +42,15 @@ pipeline {
 
           sh """
             unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
-            docker run --rm \
-              -v ${WORKSPACE}/output:/app/output \
-              -e GOOGLE_API_KEY='${GOOGLE_API_KEY}' \
-              -e CONF_DOMAIN='${CONF_DOMAIN}' \
-              -e CONF_SPACE='${CONF_SPACE}' \
-              -e CONF_USER='${CONF_USER}' \
-              -e CONF_TOKEN='${CONF_TOKEN}' \
-              -e COMMIT_MSG='${msg}' \
-              -e COMMIT_DIFF=' ' \              # ← single space to satisfy agent
+            docker run --rm \\
+              -v ${WORKSPACE}/output:/app/output \\
+              -e GOOGLE_API_KEY='${GOOGLE_API_KEY}' \\
+              -e CONF_DOMAIN='${CONF_DOMAIN}' \\
+              -e CONF_SPACE='${CONF_SPACE}' \\
+              -e CONF_USER='${CONF_USER}' \\
+              -e CONF_TOKEN='${CONF_TOKEN}' \\
+              -e COMMIT_MSG='${msg}' \\
+              -e COMMIT_DIFF=' ' \\
               changelog-agent:latest
           """
         }
@@ -61,7 +58,6 @@ pipeline {
       }
     }
 
-    /* 4) (optional) push to logs repo */
     stage('Store Logs to GitHub') {
       when { expression { env.GITHUB_TOKEN?.trim() } }
       steps {
