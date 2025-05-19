@@ -1,10 +1,8 @@
 /*-----------------------------------------------------------------
-   Jenkinsfile – Release-notes pipeline (COMMIT_DIFF hack)
+   Jenkinsfile – Release-notes pipeline (with release.diff)
 ------------------------------------------------------------------*/
 pipeline {
   agent any
-
-  /* Disable Declarative’s implicit checkout */
   options { skipDefaultCheckout() }
 
   environment {
@@ -13,7 +11,7 @@ pipeline {
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
-    // GITHUB_TOKEN = credentials('gh-logs-pat')   // optional later
+    // GITHUB_TOKEN = credentials('gh-logs-pat')
     SLEEP_SECONDS  = '5'
   }
 
@@ -37,9 +35,16 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          sh 'mkdir -p output'
+          // 1) save the diff so it can be archived
+          sh '''
+            git diff HEAD~1 HEAD > release.diff
+            mkdir -p output
+          '''
+
+          // 2) get commit message
           def msg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
 
+          // 3) run the container
           sh """
             unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
             docker run --rm \\
