@@ -1,15 +1,14 @@
 /*-----------------------------------------------------------------
-   Jenkinsfile  –  Release-notes pipeline
+   Jenkinsfile – Release-notes pipeline
 ------------------------------------------------------------------*/
-
 pipeline {
   /*--------------------------------------------------------------
-   * 1)  Where the pipeline runs
+   * Where the pipeline runs (controller or any agent)
    *-------------------------------------------------------------*/
-  agent any        // runs on the Jenkins controller (or any free agent)
+  agent any
 
   /*--------------------------------------------------------------
-   * 2)  Secrets from  Manage Jenkins → Credentials
+   * Secrets from  Manage Jenkins ▸ Credentials
    *-------------------------------------------------------------*/
   environment {
     GOOGLE_API_KEY = credentials('gcp-gemini-key')
@@ -17,26 +16,20 @@ pipeline {
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
-
-    // GITHUB_TOKEN = credentials('gh-logs-pat')   // add later if you want Store Logs
-    SLEEP_SECONDS  = '5'                           // pause between Gemini calls
+    // GITHUB_TOKEN = credentials('gh-logs-pat')   // add later if you enable Store Logs
+    SLEEP_SECONDS  = '5'
   }
 
   /*--------------------------------------------------------------
-   * 3)  Pipeline stages
+   * Pipeline stages
    *-------------------------------------------------------------*/
   stages {
-
-    /*------------------------  Checkout  -----------------------*/
-    stage('Checkout') {
-      steps { checkout scm }
-    }
 
     /*----------------------  Build image  ----------------------*/
     stage('Build Agent') {
       steps {
         sh '''
-          # Drop Windows-specific Docker TLS vars; keep DOCKER_HOST
+          # Drop Windows Docker-TLS vars; keep DOCKER_HOST (socket mount)
           unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
 
           docker build -t changelog-agent:latest -f docker/Dockerfile .
@@ -48,13 +41,13 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          sh 'mkdir -p output'          // host dir for agent artefacts
+          sh 'mkdir -p output'   // host dir for artefacts
 
           def msg  = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
           def diff = sh(script: 'git diff HEAD~1 HEAD',   returnStdout: true).trim()
 
           sh """
-            unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH      # keep DOCKER_HOST
+            unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH        # keep DOCKER_HOST
             docker run --rm \
               -v ${WORKSPACE}/output:/app/output \
               -e GOOGLE_API_KEY='${GOOGLE_API_KEY}' \
@@ -73,7 +66,7 @@ pipeline {
 
     /*--------------  (optional) push logs repo  ----------------*/
     stage('Store Logs to GitHub') {
-      when { expression { env.GITHUB_TOKEN?.trim() } }   // will be skipped until you add the PAT
+      when { expression { env.GITHUB_TOKEN?.trim() } }   // skipped until PAT exists
       steps {
         script {
           def changelog = readFile("${WORKSPACE}/output/changelog.md")
