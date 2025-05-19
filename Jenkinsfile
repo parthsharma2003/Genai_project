@@ -1,13 +1,13 @@
 /*-----------------------------------------------------------------
-   Jenkinsfile – Release-notes pipeline  (final, working)
+   Jenkinsfile – Release-notes pipeline  (newline-safe version)
 ------------------------------------------------------------------*/
 pipeline {
   agent any
 
-  /*--- disable Declarative’s auto-checkout ---*/
+  /* Disable Declarative’s implicit SCM checkout */
   options { skipDefaultCheckout() }
 
-  /*------------  Secrets  ------------*/
+  /* --------------------- Secrets --------------------- */
   environment {
     GOOGLE_API_KEY = credentials('gcp-gemini-key')
     CONF_DOMAIN    = credentials('conf-domain')
@@ -18,35 +18,36 @@ pipeline {
     SLEEP_SECONDS  = '5'
   }
 
-  /*------------  Stages  -------------*/
+  /* --------------------- Stages ---------------------- */
   stages {
 
-    /*----------------  Clean checkout  ----------------*/
+    /* 1. Clean checkout */
     stage('Checkout') {
       steps {
-        deleteDir()          // wipe workspace left by previous build
+        deleteDir()          // wipe any leftovers
         checkout scm         // fresh clone
       }
     }
 
-    /*----------------  Build image  -------------------*/
+    /* 2. Build the Docker image */
     stage('Build Agent') {
       steps {
         sh '''
-          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH   # keep DOCKER_HOST
+          # Drop Windows Docker-TLS vars; keep DOCKER_HOST (socket mount)
+          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
           docker build -t changelog-agent:latest -f docker/Dockerfile .
         '''
       }
     }
 
-    /*-------------  Generate changelog  --------------*/
+    /* 3. Run the agent & publish the changelog */
     stage('Generate Changelog') {
       steps {
         script {
           sh 'mkdir -p output'
 
-          def msg  = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
-          def diff = sh(script: 'git diff HEAD~1 HEAD',   returnStdout: true).trim()
+          def msg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+          // diff omitted to avoid newline issues in docker env vars
 
           sh """
             unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
@@ -58,7 +59,6 @@ pipeline {
               -e CONF_USER='${CONF_USER}' \
               -e CONF_TOKEN='${CONF_TOKEN}' \
               -e COMMIT_MSG='${msg}' \
-              -e COMMIT_DIFF='${diff}' \
               changelog-agent:latest
           """
         }
@@ -66,7 +66,7 @@ pipeline {
       }
     }
 
-    /*---------  (optional) push logs repo  ------------*/
+    /* 4. (optional) push logs to a separate repo */
     stage('Store Logs to GitHub') {
       when { expression { env.GITHUB_TOKEN?.trim() } }   // skipped until PAT exists
       steps {
@@ -87,7 +87,7 @@ pipeline {
     }
   }
 
-  /*-------------  Post actions  -------------*/
+  /* ------------------ Post actions ------------------- */
   post {
     always {
       archiveArtifacts artifacts: 'release.diff',
