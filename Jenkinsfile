@@ -1,8 +1,11 @@
 /*-----------------------------------------------------------------
-   Jenkinsfile – Release-notes pipeline
+   Jenkinsfile – Release-notes pipeline  (final, working)
 ------------------------------------------------------------------*/
 pipeline {
   agent any
+
+  /*--- disable Declarative’s auto-checkout ---*/
+  options { skipDefaultCheckout() }
 
   /*------------  Secrets  ------------*/
   environment {
@@ -11,25 +14,32 @@ pipeline {
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
-    // GITHUB_TOKEN = credentials('gh-logs-pat')   // add later if you want Store Logs
+    // GITHUB_TOKEN = credentials('gh-logs-pat')   // add later if you enable Store Logs
     SLEEP_SECONDS  = '5'
   }
 
   /*------------  Stages  -------------*/
   stages {
 
-    /*--- Build the Docker image ---*/
+    /*----------------  Clean checkout  ----------------*/
+    stage('Checkout') {
+      steps {
+        deleteDir()          // wipe workspace left by previous build
+        checkout scm         // fresh clone
+      }
+    }
+
+    /*----------------  Build image  -------------------*/
     stage('Build Agent') {
       steps {
         sh '''
-          # Drop Windows Docker-TLS vars; keep DOCKER_HOST
-          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH   # keep DOCKER_HOST
           docker build -t changelog-agent:latest -f docker/Dockerfile .
         '''
       }
     }
 
-    /*--- Run the agent & publish changelog ---*/
+    /*-------------  Generate changelog  --------------*/
     stage('Generate Changelog') {
       steps {
         script {
@@ -56,7 +66,7 @@ pipeline {
       }
     }
 
-    /*--- (optional) push logs repo ---*/
+    /*---------  (optional) push logs repo  ------------*/
     stage('Store Logs to GitHub') {
       when { expression { env.GITHUB_TOKEN?.trim() } }   // skipped until PAT exists
       steps {
@@ -77,7 +87,7 @@ pipeline {
     }
   }
 
-  /*------------  Post actions  ---------*/
+  /*-------------  Post actions  -------------*/
   post {
     always {
       archiveArtifacts artifacts: 'release.diff',
