@@ -1,46 +1,61 @@
-pipeline {
-  /***************** 1) Where the pipeline runs *****************/
-  agent any                    // <-- no docker wrapper
+/*-----------------------------------------------------------------
+   Jenkinsfile  –  Release-notes pipeline
+------------------------------------------------------------------*/
 
-  /***************** 2) Secrets & constants *********************/
+pipeline {
+  /*--------------------------------------------------------------
+   * 1)  Where the pipeline runs
+   *     – plain ‘agent any’ keeps it simple.
+   *-------------------------------------------------------------*/
+  agent any      // runs on the Jenkins controller or any free agent
+
+  /*--------------------------------------------------------------
+   * 2)  Secrets from  Manage Jenkins → Credentials
+   *-------------------------------------------------------------*/
   environment {
     GOOGLE_API_KEY = credentials('gcp-gemini-key')
     CONF_DOMAIN    = credentials('conf-domain')
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
-    GITHUB_TOKEN   = credentials('gh-logs-pat')   // optional
-    SLEEP_SECONDS  = '5'
+
+    GITHUB_TOKEN   = credentials('gh-logs-pat')    // optional
+    SLEEP_SECONDS  = '5'                           // rate-limit pause
   }
 
+  /*--------------------------------------------------------------
+   * 3)  Pipeline stages
+   *-------------------------------------------------------------*/
   stages {
 
-    /************* Checkout *****************/
+    /*------------------------  Checkout  -----------------------*/
     stage('Checkout') {
       steps { checkout scm }
     }
 
-    /************* Build Docker image *******/    
+    /*----------------------  Build image  ----------------------*/
     stage('Build Agent') {
       steps {
         sh '''
-          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+          # Drop Windows-specific Docker vars that break the CLI
+          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_HOST
+
           docker build -t changelog-agent:latest -f docker/Dockerfile .
         '''
       }
     }
 
-    /************* Run agent & publish page */    
+    /*-------------------  Generate changelog  ------------------*/
     stage('Generate Changelog') {
       steps {
         script {
-          sh 'mkdir -p output'
+          sh 'mkdir -p output'                         // host dir for artifacts
 
           def msg  = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
           def diff = sh(script: 'git diff HEAD~1 HEAD',   returnStdout: true).trim()
 
           sh """
-            unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+            unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_HOST
             docker run --rm \
               -v ${WORKSPACE}/output:/app/output \
               -e GOOGLE_API_KEY='${GOOGLE_API_KEY}' \
@@ -57,12 +72,13 @@ pipeline {
       }
     }
 
-    /************* (Optional) push logs *****/    
+    /*--------------  (optional) push logs repo  ----------------*/
     stage('Store Logs to GitHub') {
-      when { expression { env.GITHUB_TOKEN?.trim() } }
+      when { expression { env.GITHUB_TOKEN?.trim() } }   // runs only if PAT exists
       steps {
         script {
           def changelog = readFile("${WORKSPACE}/output/changelog.md")
+
           dir('release-logs') {
             git url: 'https://github.com/your-org/release-logs.git',
                 credentialsId: 'gh-logs-pat'
@@ -79,10 +95,12 @@ pipeline {
     }
   }
 
-  /************* Always run ****************/
+  /*-----------------------  Post actions  ----------------------*/
   post {
     always {
-      archiveArtifacts artifacts: 'release.diff', fingerprint: true, allowEmptyArchive: true
+      archiveArtifacts artifacts: 'release.diff',
+                       fingerprint: true,
+                       allowEmptyArchive: true
       echo 'Pipeline complete.'
     }
   }
