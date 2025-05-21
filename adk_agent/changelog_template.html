@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }} Changelog</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #1a3c66;
+            border-bottom: 3px solid #1a73e8;
+            padding-bottom: 10px;
+            font-size: 2.2em;
+        }
+        h2 {
+            color: #1a3c66;
+            font-size: 1.5em;
+            margin-top: 20px;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 25px;
+            margin-bottom: 15px;
+        }
+        .metadata {
+            background-color: #e8f0fe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 25px;
+            font-size: 0.9em;
+        }
+        a {
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .header-logo {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header-logo img {
+            max-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-logo">
+        <img src="https://via.placeholder.com/150x50?text=Logo" alt="{{ project_name }} Logo">
+    </div>
+    <div class="container">
+        <h1>{{ project_name }} Changelog</h1>
+        {{ markdown_content | safe }}
+        <div class="metadata">
+            <p><strong>Confluence Page:</strong> <a href="{{ page_url }}">{{ page_url }}</a></p>
+            {% if commit_hash %}
+            <p><strong>Commit:</strong> {{ commit_hash }}</p>
+            {% endif %}
+            <p><strong>Generated:</strong> {{ current_date }}</p>
+        </div>
+    </div>
+</body>
+</html>

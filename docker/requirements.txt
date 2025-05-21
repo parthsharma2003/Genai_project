@@ -4,3 +4,4 @@ unidiff
 tenacity
 markdown
 google-generativeai
+jinja2

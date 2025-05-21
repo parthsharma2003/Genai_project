@@ -1,143 +1,3 @@
-# #!/usr/bin/env python3
-# import os
-# import sys
-# import datetime
-# import logging
-# import requests
-# from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-# import google.generativeai as genai
-# from google.api_core.exceptions import ResourceExhausted
-# import markdown
-
-# # ——— Logging setup —————————————————————————————————————————————————————————————————————————
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# # ——— Confluence helper with retry/backoff —————————————————————————————————————————————————————
-# @retry(
-#     retry=retry_if_exception_type(requests.exceptions.RequestException),
-#     wait=wait_exponential(multiplier=2, max=30),
-#     stop=stop_after_attempt(3)
-# )
-# def _create_confluence_page(url: str, auth: tuple, payload: dict) -> dict:
-#     resp = requests.post(url, json=payload, auth=auth, timeout=30)
-#     resp.raise_for_status()
-#     return resp.json()
-
-# def post_confluence(title: str, html_body: str):
-#     """
-#     Publishes an HTML page to Confluence.
-#     Retries on network/server errors; on 409 conflict, retries once with a timestamped title.
-#     Exits with code 1 on non-retryable errors.
-#     """
-#     domain = os.environ["CONF_DOMAIN"]
-#     user   = os.environ["CONF_USER"]
-#     token  = os.environ["CONF_TOKEN"]
-#     space  = os.environ["CONF_SPACE"]
-#     url    = f"https://{domain}/wiki/rest/api/content"
-#     auth   = (user, token)
-
-#     def build_payload(t):
-#         return {
-#             "type": "page",
-#             "title": t,
-#             "space": {"key": space},
-#             "body": {"storage": {"value": html_body, "representation": "storage"}}
-#         }
-
-#     try:
-#         data = _create_confluence_page(url, auth, build_payload(title))
-#     except requests.exceptions.HTTPError as e:
-#         status = e.response.status_code
-#         text   = e.response.text
-#         logger.error(f"Confluence HTTP {status}: {text}")
-#         if status == 409:
-#             # Conflict → retry once with timestamp
-#             ts = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-#             data = _create_confluence_page(
-#                 url,
-#                 auth,
-#                 build_payload(f"{title} – {ts}")
-#             )
-#         else:
-#             logger.critical("Non-retryable Confluence error, exiting.")
-#             sys.exit(1)
-
-#     page_id  = data["id"]
-#     page_url = f"https://{domain}/wiki/spaces/{space}/pages/{page_id}"
-#     logger.info(f"Published to Confluence: {page_url}")
-#     print(page_url)
-
-# # ——— AI content generation with retry on rate limits ——————————————————————————————————————————
-# @retry(
-#     retry=retry_if_exception_type(ResourceExhausted),
-#     wait=wait_exponential(multiplier=2, max=30),
-#     stop=stop_after_attempt(3)
-# )
-# def generate_changelog(model, prompt):
-#     response = model.generate_content(
-#         prompt,
-#         generation_config=genai.types.GenerationConfig(max_output_tokens=512)
-#     )
-#     if not response.text:
-#         raise ValueError("LLM did not return any content.")
-#     return response.text.strip()
-
-# # ——— Main flow —————————————————————————————————————————————————————————————————————
-# def main():
-#     # Check required environment variables
-#     required_env_vars = [
-#         "GOOGLE_API_KEY",
-#         "CONF_DOMAIN",
-#         "CONF_SPACE",
-#         "CONF_USER",
-#         "CONF_TOKEN",
-#         "COMMIT_MSG",
-#         "COMMIT_DIFF"
-#     ]
-#     for var in required_env_vars:
-#         if not os.getenv(var):
-#             logger.critical(f"Environment variable {var} is not set.")
-#             sys.exit(1)
-
-#     commit_msg = os.getenv("COMMIT_MSG").strip()
-#     diff_text  = os.getenv("COMMIT_DIFF").strip()
-
-#     prompt = f"""
-# Commit message:
-# {commit_msg}
-
-# Unified diff:
-# {diff_text}
-
-# Generate a concise, human-friendly Markdown changelog, then return only the Markdown.
-# """.strip()
-
-#     logger.info("Invoking Gemini LLM…")
-#     genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-#     model = genai.GenerativeModel('gemini-1.5-flash')  # Update model name if necessary
-
-#     try:
-#         markdown_content = generate_changelog(model, prompt)
-#     except Exception as e:
-#         logger.critical(f"Failed to generate changelog: {e}")
-#         sys.exit(1)
-
-#     # Convert Markdown to HTML for Confluence
-#     html_content = markdown.markdown(markdown_content)
-
-#     # Post to Confluence
-#     post_confluence(commit_msg, html_content)
-
-#     # Save Markdown changelog to file
-#     output_dir = "/app/output"
-#     os.makedirs(output_dir, exist_ok=True)
-#     with open(os.path.join(output_dir, "changelog.md"), "w") as f:
-#         f.write(markdown_content)
-
-# if __name__ == "__main__":
-#     main()
-
 #!/usr/bin/env python3
 import os
 import sys
@@ -168,11 +28,16 @@ class JSONFileHandler(logging.Handler):
 
     def emit(self, record):
         log_entry = {
-            "timestamp": record.created,
+            "timestamp": datetime.datetime.utcnow().isoformat(),
             "level": record.levelname,
             "message": record.msg,
             "module": record.module,
             "line": record.lineno,
+            "jenkins_context": {
+                "pipeline_stage": os.getenv("STAGE_NAME", "unknown"),
+                "commit_hash": os.getenv("COMMIT_HASH", "unknown"),
+                "job_name": os.getenv("JOB_NAME", "unknown")
+            },
             **getattr(record, "extra", {})
         }
         with open(self.filename, "a") as f:
@@ -253,8 +118,8 @@ def generate_changelog(model, prompt: str, format_type: str = "detailed") -> str
     start_time = time.time()
     config = genai.types.GenerationConfig(
         max_output_tokens=2048 if format_type == "detailed" else 512,
-        temperature=0.6,
-        top_p=0.9
+        temperature=0.5,  # Lowered for more consistent output
+        top_p=0.95
     )
     response = model.generate_content(prompt, generation_config=config)
     duration = time.time() - start_time
@@ -263,7 +128,8 @@ def generate_changelog(model, prompt: str, format_type: str = "detailed") -> str
         raise ValueError("LLM returned empty content")
     log_structured("LLM content generated", {
         "duration_ms": duration * 1000,
-        "token_count": len(response.text.split())
+        "token_count": len(response.text.split()),
+        "format_type": format_type
     })
     return response.text.strip()
 
@@ -277,52 +143,61 @@ def build_changelog_prompt(
     project_name: str = "Project"
 ) -> str:
     """
-    Builds a sophisticated prompt for generating a client-friendly changelog.
+    Builds a highly refined prompt for generating a client-focused changelog.
     """
+    diff_content = diff_text if diff_text.strip() else "No diff provided; rely on commit message for context."
     prompt = f"""
-You are an expert technical writer and business communicator tasked with creating a professional, client-facing changelog in Markdown for {project_name}. The changelog should be engaging, clear, and appealing to both technical (developers, engineers) and non-technical (stakeholders, clients) audiences. Use the provided commit message and unified diff to generate a high-quality changelog that highlights business value and technical improvements.
+You are an expert technical writer and business communicator tasked with creating a professional, client-facing changelog in Markdown for {project_name}. The changelog must be polished, engaging, and accessible to both technical (developers, engineers) and non-technical (clients, stakeholders) audiences. It should highlight the business value of changes, ensure clarity, and maintain a visually appealing format.
 
 **Commit Message**:
 {commit_msg}
 
 **Unified Diff**:
 ```diff
-{diff_text}
+{diff_content}
 ```
 
 **Instructions**:
-1. **Structure**: Organize the changelog into the following sections:
-   - **Overview**: A 3-5 sentence summary of the changes, emphasizing business benefits (e.g., improved user experience, increased reliability) and technical enhancements.
-   - **Key Changes**: A bullet-point list of major changes, including features, bug fixes, or optimizations. Use concise, action-oriented language (e.g., "Added X", "Improved Y").
-   - **Technical Details**: A brief section for developers, summarizing code-level changes (e.g., new APIs, refactored modules) in a technical but accessible tone.
-   - **Business Impact**: Explain how the changes benefit clients or end-users (e.g., faster performance, cost savings, new capabilities).
-   - **Metadata**: If provided, include commit hash and author in a 'Metadata' section.
-2. **Tone**: Professional, confident, and approachable. Avoid jargon unless necessary, and explain technical terms briefly for non-technical readers.
-3. **Format**: Return only valid Markdown. Use headers (##), bullet lists, code blocks, and tables where appropriate to enhance readability.
-4. **Context**: Infer the purpose and impact of changes from the commit message and diff. Highlight user-facing or business-critical modifications.
-5. **Visual Appeal**: Use Markdown features (e.g., bold, italics, tables) to make the changelog scannable and visually engaging.
-6. **Format Type**: {'Generate a detailed changelog with comprehensive details for all sections.' if format_type == "detailed" else 'Generate a concise changelog focusing on key changes and impact, omitting technical details.'}
-7. **Client Focus**: Frame changes in terms of value to the client (e.g., "Enhanced security to protect your data" rather than "Fixed security bug").
+1. **Structure**: Organize the changelog into these sections:
+   - **Overview**: A 3-5 sentence summary emphasizing business benefits (e.g., improved user experience, cost savings) and key technical enhancements. Start with a strong opening sentence.
+   - **Key Changes**: A bullet-point list of major changes (features, fixes, optimizations). Use action verbs (e.g., "Added", "Improved") and quantify improvements where possible (e.g., "Reduced latency by 25%").
+   - **Technical Details**: A concise section for developers, summarizing code-level changes (e.g., new APIs, refactored modules) in an accessible tone. Omit in 'concise' format.
+   - **Business Impact**: Highlight benefits to clients/end-users (e.g., enhanced security, faster workflows). Frame changes in terms of value (e.g., "Protects sensitive data" instead of "Fixed bug").
+   - **Metadata**: Include commit hash and author (if provided) in a 'Metadata' section.
+2. **Tone**: Professional, confident, and approachable. Avoid complex jargon; explain technical terms briefly for non-technical readers.
+3. **Format**: Return *only* valid Markdown. Use:
+   - Headers (##) for sections.
+   - Bullet lists for changes.
+   - Code blocks for technical terms or file names.
+   - Tables for comparisons (e.g., before/after metrics) if applicable.
+   - Bold/italics for emphasis (e.g., **New Feature**).
+4. **Context**: Infer intent from the commit message and diff (if available). If diff is missing, focus on the commit message and assume incremental changes.
+5. **Visual Appeal**: Ensure the Markdown is scannable with clear headings, short paragraphs, and consistent formatting.
+6. **Format Type**: 
+   - Detailed: Include all sections with comprehensive details.
+   - Concise: Focus on Overview, Key Changes, and Business Impact; omit Technical Details.
+7. **Client Focus**: Emphasize value to clients (e.g., "Streamlined workflows to save time" instead of "Refactored code").
+8. **Error Handling**: If input data is incomplete, generate a reasonable changelog based on available information.
 
 **Example Output**:
 # Changelog: {project_name} Update
 ## Overview
-This update introduces a new user dashboard and improves system performance, delivering a smoother experience for end-users. Key enhancements include faster data processing and robust error handling, ensuring greater reliability.
+This release introduces a **new reporting dashboard**, delivering real-time insights to users. Performance optimizations reduce data processing times, enhancing the overall experience. These changes empower clients with faster decision-making capabilities.
 
 ## Key Changes
-- **Added** interactive user dashboard with real-time analytics.
-- **Optimized** backend queries for 30% faster response times.
-- **Fixed** issue with session timeouts during peak usage.
+- **Added** interactive reporting dashboard with customizable filters.
+- **Optimized** database queries, reducing latency by 30%.
+- **Fixed** session timeout issue during high-traffic periods.
 
 ## Technical Details
-- Refactored `UserService` module to support new dashboard APIs.
-- Updated database indexes for improved query performance.
+- Implemented `ReportService` module for dashboard functionality.
+- Updated `db/queries.sql` with new indexes for performance.
 
 ## Business Impact
-Clients will benefit from a more intuitive interface and faster data access, reducing operational delays. The update also enhances system stability, minimizing downtime.
+The new dashboard enables clients to monitor KPIs in real-time, improving operational efficiency. Enhanced stability ensures uninterrupted access during peak usage.
 
 ## Metadata
-- **Commit**: abc123
+- **Commit**: `abc123`
 - **Author**: Jane Doe
 
 **Output**:
@@ -337,7 +212,7 @@ Return only the Markdown content, nothing else.
     return prompt.strip()
 
 # ——— Generate client-friendly HTML documentation ———————————————————————————————————
-def generate_html_documentation(markdown_content: str, project_name: str, page_url: str) -> str:
+def generate_html_documentation(markdown_content: str, project_name: str, page_url: str, commit_hash: str = None) -> str:
     """
     Generates a styled HTML documentation page for clients using Jinja2 template.
     """
@@ -350,45 +225,77 @@ def generate_html_documentation(markdown_content: str, project_name: str, page_u
     <title>{{ project_name }} Changelog</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             line-height: 1.6;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 30px;
             color: #333;
-        }
-        h1, h2 {
-            color: #2c3e50;
+            background-color: #f9f9f9;
         }
         h1 {
-            border-bottom: 2px solid #3498db;
+            color: #1a3c66;
+            border-bottom: 3px solid #1a73e8;
             padding-bottom: 10px;
+            font-size: 2.2em;
+        }
+        h2 {
+            color: #1a3c66;
+            font-size: 1.5em;
+            margin-top: 20px;
         }
         ul {
             list-style-type: disc;
-            margin-left: 20px;
+            margin-left: 25px;
+            margin-bottom: 15px;
         }
         .metadata {
-            background-color: #f7f7f7;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 20px;
+            background-color: #e8f0fe;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 25px;
+            font-size: 0.9em;
         }
         a {
-            color: #3498db;
+            color: #1a73e8;
             text-decoration: none;
+            font-weight: 500;
         }
         a:hover {
             text-decoration: underline;
         }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
     </style>
 </head>
 <body>
-    <h1>{{ project_name }} Changelog</h1>
-    {{ markdown_content | safe }}
-    <div class="metadata">
-        <p><strong>Confluence Page:</strong> <a href="{{ page_url }}">{{ page_url }}</a></p>
-        <p><strong>Generated:</strong> {{ current_date }}</p>
+    <div class="container">
+        <h1>{{ project_name }} Changelog</h1>
+        {{ markdown_content | safe }}
+        <div class="metadata">
+            <p><strong>Confluence Page:</strong> <a href="{{ page_url }}">{{ page_url }}</a></p>
+            {% if commit_hash %}
+            <p><strong>Commit:</strong> {{ commit_hash }}</p>
+            {% endif %}
+            <p><strong>Generated:</strong> {{ current_date }}</p>
+        </div>
     </div>
 </body>
 </html>
@@ -399,6 +306,7 @@ def generate_html_documentation(markdown_content: str, project_name: str, page_u
         project_name=project_name,
         markdown_content=html_content,
         page_url=page_url,
+        commit_hash=commit_hash,
         current_date=datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     )
 
@@ -411,13 +319,12 @@ def validate_env_vars(required_vars: list) -> None:
         raise ValueError(f"Missing environment variables: {', '.join(missing)}")
 
 def validate_commit_data(commit_msg: str, diff_text: str) -> None:
-    """Validates commit message and diff are not empty."""
+    """Validates commit message; logs warning for empty diff."""
     if not commit_msg.strip():
         log_structured("Empty commit message", {})
         raise ValueError("Commit message is empty")
     if not diff_text.strip():
-        log_structured("Empty diff text", {})
-        raise ValueError("Diff text is empty")
+        log_structured("Empty diff text; proceeding with commit message only", {})
 
 # ——— Main flow —————————————————————————————————————————————————————————————
 def main():
@@ -428,29 +335,29 @@ def main():
         "CONF_SPACE",
         "CONF_USER",
         "CONF_TOKEN",
-        "COMMIT_MSG",
-        "COMMIT_DIFF"
+        "COMMIT_MSG"
     ]
     validate_env_vars(required_env_vars)
 
     # Optional environment variables
     commit_hash = os.getenv("COMMIT_HASH", "").strip()
     author = os.getenv("COMMIT_AUTHOR", "").strip()
+    diff_text = os.getenv("COMMIT_DIFF", "").strip()
     format_type = os.getenv("CHANGELOG_FORMAT", "detailed").strip().lower()
-    project_name = os.getenv("PROJECT_NAME", "Project").strip()
+    project_name = os.getenv("PROJECT_NAME", "GenAI Project").strip()
     if format_type not in ["detailed", "concise"]:
         log_structured("Invalid changelog format, defaulting to detailed", {"format": format_type})
         format_type = "detailed"
 
     # Load commit data
     commit_msg = os.getenv("COMMIT_MSG").strip()
-    diff_text = os.getenv("COMMIT_DIFF").strip()
     validate_commit_data(commit_msg, diff_text)
 
     # Build prompt
     log_structured("Building changelog prompt", {
         "format_type": format_type,
-        "project_name": project_name
+        "project_name": project_name,
+        "commit_hash": commit_hash
     })
     prompt = build_changelog_prompt(commit_msg, diff_text, commit_hash, author, format_type, project_name)
 
@@ -499,7 +406,7 @@ def main():
     # Generate and save HTML documentation
     html_path = os.path.join(output_dir, "changelog.html")
     try:
-        html_doc = generate_html_documentation(markdown_content, project_name, page_url)
+        html_doc = generate_html_documentation(markdown_content, project_name, page_url, commit_hash)
         with open(html_path, "w") as f:
             f.write(html_doc)
         log_structured("Saved HTML documentation", {"path": html_path})
