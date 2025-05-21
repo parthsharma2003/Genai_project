@@ -7,16 +7,16 @@ pipeline {
     OUTPUT_DIR     = "${WORKSPACE}/output"
     LOG_DIR        = "${WORKSPACE}/logs"
 
-    // only credentials or literals here
+    // your API‐ and Confluence‐creds are fine here:
     GOOGLE_API_KEY = credentials('gcp-gemini-key')
     CONF_DOMAIN    = credentials('conf-domain')
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
 
-    PROJECT_NAME      = 'GenAI Project'
-    CHANGELOG_FORMAT  = 'detailed'
-    STAGE_NAME        = 'Generate Changelog'
+    PROJECT_NAME     = 'GenAI Project'
+    CHANGELOG_FORMAT = 'detailed'
+    STAGE_NAME       = 'Generate Changelog'
     // JOB_NAME is already in env.JOB_NAME
   }
 
@@ -40,21 +40,21 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) Capture all Git metadata with shell
+          // 1) capture all the git metadata
           env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
           env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
           env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
-          
-          // 2) Save diff to file, then read it
+
+          // 2) write and then read the diff
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) Make sure output & log dirs exist
+          // 3) ensure the dirs exist
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
         }
 
-        // 4) Run the container in one block
+        // 4) run the container in one block
         sh '''
           unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
           docker run --rm \
@@ -81,22 +81,23 @@ pipeline {
 
   post {
     always {
-      // push logs & changelog back into GitHub
       script {
-        withCredentials([usernamePassword(
+        // use a string binding for your GH PAT
+        withCredentials([string(
           credentialsId: 'gh-logs-pat',
-          usernameVariable: 'GIT_USERNAME',
-          passwordVariable: 'GIT_PASSWORD'
+          variable: 'GITHUB_TOKEN'
         )]) {
           sh """
             git config user.email "jenkins@ci.com"
             git config user.name  "Jenkins CI"
             mkdir -p logs
+
             cp ${LOG_DIR}/changelog_generator.log logs/changelog_generator_${BUILD_NUMBER}.log || true
             cp ${OUTPUT_DIR}/changelog.md    logs/changelog_${COMMIT_HASH}.md      || true
+
             git add logs/*
             git commit -m "Add changelog + log for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
-            git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/parthsharma2003/Genai_project.git main
+            git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main
           """
         }
       }
