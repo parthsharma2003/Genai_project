@@ -56,17 +56,19 @@ pipeline {
           echo "VERSION: ${env.VERSION}"
           echo "COMMIT_DIFF: ${env.COMMIT_DIFF}"
 
-          // Debug: Verify LOG_DIR permissions
+          // Debug: Verify LOG_DIR and OUTPUT_DIR permissions
           sh '''
             mkdir -p ${OUTPUT_DIR} ${LOG_DIR}
-            ls -ld ${LOG_DIR}
+            ls -ld ${OUTPUT_DIR} ${LOG_DIR}
             touch ${LOG_DIR}/test.txt || echo "Failed to write to LOG_DIR"
+            touch ${OUTPUT_DIR}/test.txt || echo "Failed to write to OUTPUT_DIR"
           '''
 
           catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
             sh '''
               unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
               docker run --rm \
+                --user $(id -u):$(id -g) \
                 -v ${OUTPUT_DIR}:/app/output \
                 -v ${LOG_DIR}:/app/logs \
                 -v ${WORKSPACE}/release.diff:/app/release.diff:ro \
@@ -84,6 +86,12 @@ pipeline {
                 -e VERSION="${VERSION}" \
                 -e STAGE_NAME="${STAGE_NAME}" \
                 ${DOCKER_IMAGE}
+              # Debug: List files in container output directories
+              docker run --rm \
+                -v ${OUTPUT_DIR}:/app/output \
+                -v ${LOG_DIR}:/app/logs \
+                ${DOCKER_IMAGE} \
+                sh -c "ls -l /app/output /app/logs; sync; sleep 1"
             '''
           }
         }
@@ -100,8 +108,8 @@ pipeline {
             git config user.name "Jenkins CI"
             mkdir -p logs
 
-            # Debug: List files in LOG_DIR
-            ls -l ${LOG_DIR} || echo "No files in LOG_DIR"
+            # Debug: List files in LOG_DIR and OUTPUT_DIR
+            ls -l ${LOG_DIR} ${OUTPUT_DIR} || echo "No files in LOG_DIR or OUTPUT_DIR"
 
             if [ -f "${LOG_DIR}/changelog_generator.log" ]; then
               cp "${LOG_DIR}/changelog_generator.log" logs/changelog_generator_${BUILD_NUMBER}.log
@@ -116,9 +124,12 @@ pipeline {
             fi
 
             if [ "$(ls -A logs)" ]; then
+              git checkout main || git checkout master || echo "Failed to checkout main or master branch"
               git add logs/*
               git commit -m "Add logs for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
-              git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main
+              git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main || \
+              git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git master || \
+              echo "Failed to push logs to repository"
             else
               echo "⚠️ logs/ is empty—nothing to commit"
             fi

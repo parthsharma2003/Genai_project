@@ -6,7 +6,7 @@ import markdown
 import google.generativeai as genai
 from requests.auth import HTTPBasicAuth
 import requests
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, Template
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Set up logging
@@ -128,7 +128,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         return None
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
-    """Render HTML using Jinja2 template."""
+    """Render HTML using Jinja2 template or fallback."""
     logger.info("Rendering HTML output")
     try:
         env = Environment(loader=FileSystemLoader("/app"))
@@ -140,11 +140,50 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
             commit_hash=commit_hash,
             current_date=version
         )
-        logger.info("HTML rendered successfully")
+        logger.info("HTML rendered successfully from file")
         return html_output
     except Exception as e:
-        logger.warning(f"HTML rendering failed, skipping HTML output: {str(e)}")
-        return None
+        logger.warning(f"HTML rendering failed, using fallback template: {str(e)}")
+        # Fallback template
+        fallback_template = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{{ project_name }} Changelog</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                h1 { color: #333; }
+                .changelog { max-width: 800px; margin: auto; }
+                .meta { color: #666; font-size: 0.9em; }
+            </style>
+        </head>
+        <body>
+            <div class="changelog">
+                <h1>{{ project_name }} Changelog</h1>
+                {{ markdown_content | safe }}
+                <div class="meta">
+                    <p>Confluence Page: {{ page_url }}</p>
+                    {% if commit_hash %}
+                    <p>Commit: {{ commit_hash }}</p>
+                    {% endif %}
+                    <p>Generated: {{ current_date }}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        template = Template(fallback_template)
+        html_output = template.render(
+            project_name=project_name,
+            markdown_content=markdown.markdown(markdown_content),
+            page_url=page_url or "Not published",
+            commit_hash=commit_hash,
+            current_date=version
+        )
+        logger.info("HTML rendered using fallback template")
+        return html_output
 
 def main():
     """Main function to generate and publish changelog."""
@@ -162,11 +201,14 @@ def main():
         )
         markdown_out = generate_changelog(prompt)
 
-        # Save Markdown output (before Confluence or HTML to ensure partial success)
+        # Save Markdown output
         out_dir = Path("/app/output")
         out_dir.mkdir(exist_ok=True, parents=True)
         (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
         logger.info(f"Markdown changelog written to {out_dir / 'changelog.md'}")
+        # Flush logs
+        for handler in logger.handlers:
+            handler.flush()
 
         # Publish to Confluence
         auth = HTTPBasicAuth(os.getenv("CONF_USER"), os.getenv("CONF_TOKEN"))
@@ -177,6 +219,9 @@ def main():
             domain=os.getenv("CONF_DOMAIN"),
             auth=auth
         )
+        # Flush logs
+        for handler in logger.handlers:
+            handler.flush()
 
         # Render HTML
         html_out = render_html(
@@ -191,10 +236,16 @@ def main():
             logger.info(f"HTML changelog written to {out_dir / 'changelog.html'}")
         else:
             logger.warning("Skipping HTML changelog due to rendering failure")
-
-        # Ensure logs are flushed
+        # Flush logs
         for handler in logger.handlers:
             handler.flush()
+
+        # Ensure files are written
+        os.sync()
+        logger.info("Completed changelog generation, syncing files")
+        # Small delay to ensure file writes
+        import time
+        time.sleep(1)
 
         sys.exit(0)
     except Exception as e:
