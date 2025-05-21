@@ -2,22 +2,22 @@ pipeline {
   agent any
   options { skipDefaultCheckout() }
 
+  // Only literals or credentials here
   environment {
     DOCKER_IMAGE   = 'changelog-agent:latest'
     OUTPUT_DIR     = "${WORKSPACE}/output"
     LOG_DIR        = "${WORKSPACE}/logs"
 
-    // your API‐ and Confluence‐creds are fine here:
     GOOGLE_API_KEY = credentials('gcp-gemini-key')
     CONF_DOMAIN    = credentials('conf-domain')
     CONF_SPACE     = credentials('conf-space')
     CONF_USER      = credentials('conf-user')
     CONF_TOKEN     = credentials('conf-token')
 
-    PROJECT_NAME     = 'GenAI Project'
-    CHANGELOG_FORMAT = 'detailed'
-    STAGE_NAME       = 'Generate Changelog'
-    // JOB_NAME is already in env.JOB_NAME
+    PROJECT_NAME      = 'GenAI Project'
+    CHANGELOG_FORMAT  = 'detailed'
+    STAGE_NAME        = 'Generate Changelog'
+    // JOB_NAME is already provided by Jenkins as env.JOB_NAME
   }
 
   stages {
@@ -40,21 +40,21 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) capture all the git metadata
+          // 1) Capture Git metadata into env vars
           env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
           env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
           env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
 
-          // 2) write and then read the diff
+          // 2) Write diff to file and read back
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) ensure the dirs exist
+          // 3) Make sure output/log dirs exist
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
         }
 
-        // 4) run the container in one block
+        // 4) Run the Docker container all at once
         sh '''
           unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
           docker run --rm \
@@ -81,8 +81,8 @@ pipeline {
 
   post {
     always {
+      // Push logs & changelog back to GitHub
       script {
-        // use a string binding for your GH PAT
         withCredentials([string(
           credentialsId: 'gh-logs-pat',
           variable: 'GITHUB_TOKEN'
@@ -92,8 +92,8 @@ pipeline {
             git config user.name  "Jenkins CI"
             mkdir -p logs
 
-            cp ${LOG_DIR}/changelog_generator.log logs/changelog_generator_${BUILD_NUMBER}.log || true
-            cp ${OUTPUT_DIR}/changelog.md    logs/changelog_${COMMIT_HASH}.md      || true
+            cp ${LOG_DIR}/changelog_generator.log   logs/changelog_generator_${BUILD_NUMBER}.log || true
+            cp ${OUTPUT_DIR}/changelog.md          logs/changelog_${COMMIT_HASH}.md      || true
 
             git add logs/*
             git commit -m "Add changelog + log for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
@@ -101,9 +101,11 @@ pipeline {
           """
         }
       }
+
       archiveArtifacts artifacts: 'output/**, logs/**, release.diff', fingerprint: true, allowEmptyArchive: true
       echo 'Pipeline complete.'
     }
+
     failure {
       echo 'Pipeline failed. Check archived logs in logs/changelog_generator.log for details.'
     }
