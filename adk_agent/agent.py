@@ -22,6 +22,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Debug: Confirm log file setup
+logger.info("Starting agent.py, log directory: %s", log_dir)
+for handler in logger.handlers:
+    if isinstance(handler, logging.FileHandler):
+        logger.debug("Log file path: %s", handler.baseFilename)
+
 def validate_env_vars():
     """Validate required environment variables."""
     required_vars = [
@@ -34,10 +40,17 @@ def validate_env_vars():
         logger.error(f"Missing environment variables: {', '.join(missing)}")
         sys.exit(1)
     logger.info("All required environment variables are present")
+    # Debug: Log non-sensitive env vars
+    for var in required_vars:
+        value = os.getenv(var) if var not in ["GOOGLE_API_KEY", "CONF_TOKEN"] else "****"
+        logger.debug(f"Env var {var}: {value}")
 
 def build_prompt(commit_msg, commit_diff, project_name, version, changelog_format):
     """Build the prompt for the LLM."""
     logger.info("Building changelog prompt")
+    if not commit_diff or commit_diff == "No diff available":
+        logger.warning("Commit diff is empty, using commit message only")
+        commit_diff = "No diff provided"
     return f"""
     You are an AI assistant tasked with generating a changelog for the {project_name} project.
     Changelog Format: {changelog_format}
@@ -52,21 +65,34 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     """
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
-def generate_changelog(prompt):
-    """Generate changelog using Gemini LLM."""
-    logger.info("Initializing Gemini LLM")
+def generate_changelog_with_model(model_name, prompt):
+    """Generate changelog using specified Gemini model."""
+    logger.info(f"Attempting to initialize Gemini LLM: {model_name}")
     try:
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        model = genai.GenerativeModel("gemini-1.5-pro")
+        model = genai.GenerativeModel(model_name)
         response = model.generate_content(prompt)
         if not response.text:
             logger.error("Empty response from LLM")
             raise ValueError("LLM returned empty response")
-        logger.info("Changelog generated successfully")
+        logger.info("Changelog generated successfully with %s", model_name)
         return response.text.strip()
     except Exception as e:
-        logger.error(f"LLM generation failed: {str(e)}")
+        logger.error(f"LLM generation failed with {model_name}: {str(e)}")
         raise
+
+def generate_changelog(prompt):
+    """Generate changelog, trying gemini-1.5-pro first, then gemini-1.5-flash."""
+    try:
+        return generate_changelog_with_model("gemini-1.5-pro", prompt)
+    except Exception as e:
+        logger.warning("Failed with gemini-1.5-pro, falling back to gemini-1.5-flash: %s", str(e))
+        try:
+            return generate_changelog_with_model("gemini-1.5-flash", prompt)
+        except Exception as e:
+            logger.error("Failed with gemini-1.5-flash: %s", str(e))
+            logger.info("Generating fallback changelog from commit message")
+            return f"- {os.getenv('COMMIT_MSG')}"
 
 def publish_to_confluence(title, html, space, domain, auth):
     """Publish content to Confluence."""

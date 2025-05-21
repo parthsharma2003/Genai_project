@@ -95,16 +95,19 @@ pipeline {
             git config user.name "Jenkins CI"
             mkdir -p logs
 
+            # Debug: List files in LOG_DIR
+            ls -l ${LOG_DIR} || echo "No files in LOG_DIR"
+
             if [ -f "${LOG_DIR}/changelog_generator.log" ]; then
               cp "${LOG_DIR}/changelog_generator.log" logs/changelog_generator_${BUILD_NUMBER}.log
             else
-              echo "⚠️ no JSON log to copy"
+              echo "⚠️ no changelog_generator.log found"
             fi
 
             if [ -f "${OUTPUT_DIR}/changelog.md" ]; then
               cp "${OUTPUT_DIR}/changelog.md" logs/changelog_${COMMIT_HASH}.md
             else
-              echo "⚠️ no Markdown changelog to copy"
+              echo "⚠️ no changelog.md found"
             fi
 
             if [ "$(ls -A logs)" ]; then
