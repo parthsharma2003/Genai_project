@@ -2,7 +2,7 @@ pipeline {
   agent any
   options { skipDefaultCheckout() }
 
-  // Only literals or credentials here
+  // Only literals or credentials bindings here
   environment {
     DOCKER_IMAGE   = 'changelog-agent:latest'
     OUTPUT_DIR     = "${WORKSPACE}/output"
@@ -17,7 +17,7 @@ pipeline {
     PROJECT_NAME      = 'GenAI Project'
     CHANGELOG_FORMAT  = 'detailed'
     STAGE_NAME        = 'Generate Changelog'
-    // JOB_NAME is already provided by Jenkins as env.JOB_NAME
+    // JOB_NAME is already provided by Jenkins in env.JOB_NAME
   }
 
   stages {
@@ -40,23 +40,24 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) Capture Git metadata into env vars
+          // 1) Capture all Git metadata
           env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
           env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
           env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
 
-          // 2) Write diff to file and read back
+          // 2) Write & read the diff
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) Make sure output/log dirs exist
+          // 3) Ensure the host dirs exist
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
         }
 
-        // 4) Run the Docker container all at once
+        // 4) Run the container in one go
         sh '''
           unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+
           docker run --rm \
             -v ${OUTPUT_DIR}:/app/output \
             -v ${LOG_DIR}:/app/logs \
@@ -87,18 +88,19 @@ pipeline {
           credentialsId: 'gh-logs-pat',
           variable: 'GITHUB_TOKEN'
         )]) {
-          sh """
+          // Note: single-quoted block so ${GITHUB_TOKEN} is *not* interpolated by Groovy
+          sh '''
             git config user.email "jenkins@ci.com"
             git config user.name  "Jenkins CI"
             mkdir -p logs
 
-            cp ${LOG_DIR}/changelog_generator.log   logs/changelog_generator_${BUILD_NUMBER}.log || true
+            cp ${LOG_DIR}/changelog_generator.log logs/changelog_generator_${BUILD_NUMBER}.log || true
             cp ${OUTPUT_DIR}/changelog.md          logs/changelog_${COMMIT_HASH}.md      || true
 
             git add logs/*
             git commit -m "Add changelog + log for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
             git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main
-          """
+          '''
         }
       }
 
