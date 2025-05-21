@@ -13,10 +13,10 @@ pipeline {
     CONF_USER        = credentials('conf-user')
     CONF_TOKEN       = credentials('conf-token')
 
-    PROJECT_NAME      = 'GenAI Project'
-    CHANGELOG_FORMAT  = 'detailed'
-    STAGE_NAME        = 'Generate Changelog'
-    // JOB_NAME is provided in env.JOB_NAME
+    PROJECT_NAME     = 'GenAI Project'
+    CHANGELOG_FORMAT = 'detailed'
+    STAGE_NAME       = 'Generate Changelog'
+    // JOB_NAME is auto-populated in env.JOB_NAME
   }
 
   stages {
@@ -39,20 +39,20 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // Capture Git metadata
-          env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
-          env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
-          env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
-          env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
+          // 1) Capture all Git metadata
+          env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',                          returnStdout: true).trim()
+          env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',                               returnStdout: true).trim()
+          env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',                          returnStdout: true).trim()
+          env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo Unknown', returnStdout: true).trim()
 
-          // Write & read diff
+          // 2) Write & read the diff
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // Ensure dirs exist
+          // 3) Ensure output/log dirs exist
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
 
-          // Run the container but don't abort the pipeline on non-zero exit
+          // 4) Run the AI container, but don’t abort the pipeline on non-zero exit
           catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
             sh '''
               unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
@@ -83,10 +83,8 @@ pipeline {
   post {
     always {
       script {
-        withCredentials([string(
-          credentialsId: 'gh-logs-pat',
-          variable: 'GITHUB_TOKEN'
-        )]) {
+        // Push whatever logs/changelogs were generated
+        withCredentials([string(credentialsId: 'gh-logs-pat', variable: 'GITHUB_TOKEN')]) {
           sh '''
             git config user.email "jenkins@ci.com"
             git config user.name  "Jenkins CI"
@@ -114,11 +112,9 @@ pipeline {
           '''
         }
       }
-
       archiveArtifacts artifacts: 'output/**, logs/**, release.diff', fingerprint: true, allowEmptyArchive: true
       echo 'Pipeline complete.'
     }
-
     failure {
       echo 'Pipeline failed. Check archived logs in logs/changelog_generator.log for details.'
     }
