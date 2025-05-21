@@ -1,3 +1,4 @@
+// Jenkinsfile (root of repo)
 pipeline {
   agent any
   options { skipDefaultCheckout() }
@@ -16,7 +17,6 @@ pipeline {
     PROJECT_NAME     = 'GenAI Project'
     CHANGELOG_FORMAT = 'detailed'
     STAGE_NAME       = 'Generate Changelog'
-    // JOB_NAME is auto-populated in env.JOB_NAME
   }
 
   stages {
@@ -39,35 +39,41 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) Capture all Git metadata
-          env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',                          returnStdout: true).trim()
-          env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',                               returnStdout: true).trim()
-          env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',                          returnStdout: true).trim()
+          // Capture Git metadata
+          env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+          env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+          env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an', returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo Unknown', returnStdout: true).trim()
 
-          // 2) Write & read the diff
+          // Write diff to workspace
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) Ensure output/log dirs exist
+          // Debug: Print environment variables and diff
+          echo "COMMIT_MSG: ${env.COMMIT_MSG}"
+          echo "COMMIT_HASH: ${env.COMMIT_HASH}"
+          echo "COMMIT_AUTHOR: ${env.COMMIT_AUTHOR}"
+          echo "VERSION: ${env.VERSION}"
+          echo "COMMIT_DIFF: ${env.COMMIT_DIFF}"
+
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
 
-          // 4) Run the AI container, but don’t abort the pipeline on non-zero exit
           catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
             sh '''
               unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
               docker run --rm \
                 -v ${OUTPUT_DIR}:/app/output \
                 -v ${LOG_DIR}:/app/logs \
+                -v ${WORKSPACE}/release.diff:/app/release.diff:ro \
                 -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
                 -e CONF_DOMAIN="${CONF_DOMAIN}" \
                 -e CONF_SPACE="${CONF_SPACE}" \
                 -e CONF_USER="${CONF_USER}" \
                 -e CONF_TOKEN="${CONF_TOKEN}" \
                 -e COMMIT_MSG="${COMMIT_MSG}" \
-                -e COMMIT_DIFF="${COMMIT_DIFF}" \
                 -e COMMIT_HASH="${COMMIT_HASH}" \
                 -e COMMIT_AUTHOR="${COMMIT_AUTHOR}" \
+                -e COMMIT_DIFF="${COMMIT_DIFF}" \
                 -e PROJECT_NAME="${PROJECT_NAME}" \
                 -e CHANGELOG_FORMAT="${CHANGELOG_FORMAT}" \
                 -e VERSION="${VERSION}" \
@@ -83,11 +89,10 @@ pipeline {
   post {
     always {
       script {
-        // Push whatever logs/changelogs were generated
         withCredentials([string(credentialsId: 'gh-logs-pat', variable: 'GITHUB_TOKEN')]) {
           sh '''
             git config user.email "jenkins@ci.com"
-            git config user.name  "Jenkins CI"
+            git config user.name "Jenkins CI"
             mkdir -p logs
 
             if [ -f "${LOG_DIR}/changelog_generator.log" ]; then
