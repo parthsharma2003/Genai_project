@@ -2,22 +2,21 @@ pipeline {
   agent any
   options { skipDefaultCheckout() }
 
-  // Only literals or credentials bindings here
   environment {
-    DOCKER_IMAGE   = 'changelog-agent:latest'
-    OUTPUT_DIR     = "${WORKSPACE}/output"
-    LOG_DIR        = "${WORKSPACE}/logs"
+    DOCKER_IMAGE     = 'changelog-agent:latest'
+    OUTPUT_DIR       = "${WORKSPACE}/output"
+    LOG_DIR          = "${WORKSPACE}/logs"
 
-    GOOGLE_API_KEY = credentials('gcp-gemini-key')
-    CONF_DOMAIN    = credentials('conf-domain')
-    CONF_SPACE     = credentials('conf-space')
-    CONF_USER      = credentials('conf-user')
-    CONF_TOKEN     = credentials('conf-token')
+    GOOGLE_API_KEY   = credentials('gcp-gemini-key')
+    CONF_DOMAIN      = credentials('conf-domain')
+    CONF_SPACE       = credentials('conf-space')
+    CONF_USER        = credentials('conf-user')
+    CONF_TOKEN       = credentials('conf-token')
 
     PROJECT_NAME      = 'GenAI Project'
     CHANGELOG_FORMAT  = 'detailed'
     STAGE_NAME        = 'Generate Changelog'
-    // JOB_NAME is already provided by Jenkins in env.JOB_NAME
+    // JOB_NAME is provided in env.JOB_NAME
   }
 
   stages {
@@ -40,24 +39,23 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) Capture all Git metadata
+          // 1) Capture Git metadata
           env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
           env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
           env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
 
-          // 2) Write & read the diff
+          // 2) Write & read diff
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) Ensure the host dirs exist
+          // 3) Ensure output & log dirs
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
         }
 
-        // 4) Run the container in one go
+        // 4) Run the container (will still fail the build on error)
         sh '''
           unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
-
           docker run --rm \
             -v ${OUTPUT_DIR}:/app/output \
             -v ${LOG_DIR}:/app/logs \
@@ -82,24 +80,36 @@ pipeline {
 
   post {
     always {
-      // Push logs & changelog back to GitHub
       script {
         withCredentials([string(
           credentialsId: 'gh-logs-pat',
           variable: 'GITHUB_TOKEN'
         )]) {
-          // Note: single-quoted block so ${GITHUB_TOKEN} is *not* interpolated by Groovy
+          // guard against missing files
           sh '''
             git config user.email "jenkins@ci.com"
             git config user.name  "Jenkins CI"
             mkdir -p logs
 
-            cp ${LOG_DIR}/changelog_generator.log logs/changelog_generator_${BUILD_NUMBER}.log || true
-            cp ${OUTPUT_DIR}/changelog.md          logs/changelog_${COMMIT_HASH}.md      || true
+            if [ -f "${LOG_DIR}/changelog_generator.log" ]; then
+              cp "${LOG_DIR}/changelog_generator.log" logs/changelog_generator_${BUILD_NUMBER}.log
+            else
+              echo "⚠️ no JSON log to copy"
+            fi
 
-            git add logs/*
-            git commit -m "Add changelog + log for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
-            git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main
+            if [ -f "${OUTPUT_DIR}/changelog.md" ]; then
+              cp "${OUTPUT_DIR}/changelog.md" logs/changelog_${COMMIT_HASH}.md
+            else
+              echo "⚠️ no Markdown changelog to copy"
+            fi
+
+            if [ "$(ls -A logs)" ]; then
+              git add logs/*
+              git commit -m "Add logs for build ${BUILD_NUMBER} (${COMMIT_HASH})" || true
+              git push https://${GITHUB_TOKEN}@github.com/parthsharma2003/Genai_project.git main
+            else
+              echo "⚠️ logs/ is empty—nothing to commit"
+            fi
           '''
         }
       }
