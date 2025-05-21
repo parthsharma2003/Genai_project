@@ -22,11 +22,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Debug: Confirm log file setup
+# Debug: Confirm log file setup and test write
 logger.info("Starting agent.py, log directory: %s", log_dir)
 for handler in logger.handlers:
     if isinstance(handler, logging.FileHandler):
         logger.debug("Log file path: %s", handler.baseFilename)
+try:
+    with open(log_dir / "changelog_generator.log", "a") as f:
+        f.write("Test write at startup\n")
+    logger.info("Test write to log file succeeded")
+except Exception as e:
+    logger.error("Failed to write to log file: %s", str(e))
 
 def validate_env_vars():
     """Validate required environment variables."""
@@ -137,8 +143,8 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
         logger.info("HTML rendered successfully")
         return html_output
     except Exception as e:
-        logger.error(f"HTML rendering failed: {str(e)}")
-        raise
+        logger.warning(f"HTML rendering failed, skipping HTML output: {str(e)}")
+        return None
 
 def main():
     """Main function to generate and publish changelog."""
@@ -155,6 +161,12 @@ def main():
             changelog_format=os.getenv("CHANGELOG_FORMAT")
         )
         markdown_out = generate_changelog(prompt)
+
+        # Save Markdown output (before Confluence or HTML to ensure partial success)
+        out_dir = Path("/app/output")
+        out_dir.mkdir(exist_ok=True, parents=True)
+        (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
+        logger.info(f"Markdown changelog written to {out_dir / 'changelog.md'}")
 
         # Publish to Confluence
         auth = HTTPBasicAuth(os.getenv("CONF_USER"), os.getenv("CONF_TOKEN"))
@@ -174,13 +186,11 @@ def main():
             commit_hash=os.getenv("COMMIT_HASH"),
             version=os.getenv("VERSION")
         )
-
-        # Save outputs
-        out_dir = Path("/app/output")
-        out_dir.mkdir(exist_ok=True, parents=True)
-        (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
-        (out_dir / "changelog.html").write_text(html_out, encoding="utf-8")
-        logger.info(f"Changelog written to {out_dir}")
+        if html_out:
+            (out_dir / "changelog.html").write_text(html_out, encoding="utf-8")
+            logger.info(f"HTML changelog written to {out_dir / 'changelog.html'}")
+        else:
+            logger.warning("Skipping HTML changelog due to rendering failure")
 
         # Ensure logs are flushed
         for handler in logger.handlers:

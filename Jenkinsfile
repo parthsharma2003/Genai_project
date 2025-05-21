@@ -56,7 +56,12 @@ pipeline {
           echo "VERSION: ${env.VERSION}"
           echo "COMMIT_DIFF: ${env.COMMIT_DIFF}"
 
-          sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
+          // Debug: Verify LOG_DIR permissions
+          sh '''
+            mkdir -p ${OUTPUT_DIR} ${LOG_DIR}
+            ls -ld ${LOG_DIR}
+            touch ${LOG_DIR}/test.txt || echo "Failed to write to LOG_DIR"
+          '''
 
           catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
             sh '''
