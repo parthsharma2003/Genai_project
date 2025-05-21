@@ -39,41 +39,43 @@ pipeline {
     stage('Generate Changelog') {
       steps {
         script {
-          // 1) Capture Git metadata
+          // Capture Git metadata
           env.COMMIT_MSG    = sh(script: 'git log -1 --pretty=%B',          returnStdout: true).trim()
           env.COMMIT_HASH   = sh(script: 'git rev-parse HEAD',               returnStdout: true).trim()
           env.COMMIT_AUTHOR = sh(script: 'git log -1 --pretty=%an',          returnStdout: true).trim()
           env.VERSION       = sh(script: 'git describe --tags --always --dirty || echo "Unknown"', returnStdout: true).trim()
 
-          // 2) Write & read diff
+          // Write & read diff
           sh 'git diff HEAD^ HEAD > release.diff || true'
           env.COMMIT_DIFF = readFile('release.diff').trim() ?: 'No diff available'
 
-          // 3) Ensure output & log dirs
+          // Ensure dirs exist
           sh "mkdir -p ${OUTPUT_DIR} ${LOG_DIR}"
-        }
 
-        // 4) Run the container (will still fail the build on error)
-        sh '''
-          unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
-          docker run --rm \
-            -v ${OUTPUT_DIR}:/app/output \
-            -v ${LOG_DIR}:/app/logs \
-            -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
-            -e CONF_DOMAIN="${CONF_DOMAIN}" \
-            -e CONF_SPACE="${CONF_SPACE}" \
-            -e CONF_USER="${CONF_USER}" \
-            -e CONF_TOKEN="${CONF_TOKEN}" \
-            -e COMMIT_MSG="${COMMIT_MSG}" \
-            -e COMMIT_DIFF="${COMMIT_DIFF}" \
-            -e COMMIT_HASH="${COMMIT_HASH}" \
-            -e COMMIT_AUTHOR="${COMMIT_AUTHOR}" \
-            -e PROJECT_NAME="${PROJECT_NAME}" \
-            -e CHANGELOG_FORMAT="${CHANGELOG_FORMAT}" \
-            -e VERSION="${VERSION}" \
-            -e STAGE_NAME="${STAGE_NAME}" \
-            ${DOCKER_IMAGE}
-        '''
+          // Run the container but don't abort the pipeline on non-zero exit
+          catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+            sh '''
+              unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+              docker run --rm \
+                -v ${OUTPUT_DIR}:/app/output \
+                -v ${LOG_DIR}:/app/logs \
+                -e GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+                -e CONF_DOMAIN="${CONF_DOMAIN}" \
+                -e CONF_SPACE="${CONF_SPACE}" \
+                -e CONF_USER="${CONF_USER}" \
+                -e CONF_TOKEN="${CONF_TOKEN}" \
+                -e COMMIT_MSG="${COMMIT_MSG}" \
+                -e COMMIT_DIFF="${COMMIT_DIFF}" \
+                -e COMMIT_HASH="${COMMIT_HASH}" \
+                -e COMMIT_AUTHOR="${COMMIT_AUTHOR}" \
+                -e PROJECT_NAME="${PROJECT_NAME}" \
+                -e CHANGELOG_FORMAT="${CHANGELOG_FORMAT}" \
+                -e VERSION="${VERSION}" \
+                -e STAGE_NAME="${STAGE_NAME}" \
+                ${DOCKER_IMAGE}
+            '''
+          }
+        }
       }
     }
   }
@@ -85,7 +87,6 @@ pipeline {
           credentialsId: 'gh-logs-pat',
           variable: 'GITHUB_TOKEN'
         )]) {
-          // guard against missing files
           sh '''
             git config user.email "jenkins@ci.com"
             git config user.name  "Jenkins CI"
