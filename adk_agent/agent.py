@@ -128,10 +128,8 @@ def validate_confluence_settings(domain, space, user, token):
     return errors
 
 def publish_to_confluence(title, html, space, domain, auth):
-    """Publish content to Confluence."""
     logger.info(f"Attempting to publish to Confluence: {title}")
-    
-    # Validate settings first
+
     errors = validate_confluence_settings(domain, space, auth.username, auth.password)
     if errors:
         error_msg = "\n".join(errors)
@@ -140,23 +138,22 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(error_msg)
         print(f"===========================================\n")
         return None
-    
-    # Ensure domain is properly formatted for Confluence Cloud
+
     if not domain.startswith('https://'):
         domain = f"https://{domain}"
     if domain.endswith('/'):
         domain = domain.rstrip('/')
-    
-    # Construct the API URL - using the Cloud API format
+    # Add /wiki for Atlassian Cloud
+    if not domain.endswith('/wiki'):
+        domain += '/wiki'
+
     url = f"{domain}/rest/api/content"
     logger.info(f"Confluence API URL: {url}")
-    logger.info(f"Confluence Space: {space}")
-    
+
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
-    
     data = {
         "type": "page",
         "title": title,
@@ -170,7 +167,7 @@ def publish_to_confluence(title, html, space, domain, auth):
             }
         }
     }
-    
+
     try:
         logger.info(f"Making request to Confluence API...")
         response = requests.post(url, json=data, headers=headers, auth=auth)
@@ -197,6 +194,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(f"Full URL: {url}")
         print(f"===================================\n")
         return None
+
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
     """Render HTML using Jinja2 template or fallback."""
