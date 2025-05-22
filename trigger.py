@@ -330,3 +330,98 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
+def spiral_traverse_matrix(matrix):
+    """
+    Traverse a matrix in spiral order (clockwise from outer to inner).
+    
+    Args:
+        matrix (list): Input matrix as a 2D list
+        
+    Returns:
+        list: Elements of the matrix in spiral order
+        
+    Raises:
+        ValueError: If matrix is empty
+    """
+    if not matrix or not matrix[0]:
+        raise ValueError("Matrix cannot be empty")
+    
+    result = []
+    rows = len(matrix)
+    cols = len(matrix[0])
+    
+    # Define boundaries
+    top = 0
+    bottom = rows - 1
+    left = 0
+    right = cols - 1
+    
+    while top <= bottom and left <= right:
+        # Traverse right
+        for i in range(left, right + 1):
+            result.append(matrix[top][i])
+        top += 1
+        
+        # Traverse down
+        for i in range(top, bottom + 1):
+            result.append(matrix[i][right])
+        right -= 1
+        
+        # Traverse left
+        if top <= bottom:
+            for i in range(right, left - 1, -1):
+                result.append(matrix[bottom][i])
+            bottom -= 1
+        
+        # Traverse up
+        if left <= right:
+            for i in range(bottom, top - 1, -1):
+                result.append(matrix[i][left])
+            left += 1
+    
+    return result
+
+# Example usage of spiral traversal
+print("\nSpiral Traversal Examples:")
+
+# Example 1: 3x3 matrix
+matrix_3x3 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print_matrix(matrix_3x3, "3x3 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_3x3)
+print("Spiral traversal result:", spiral_result)
+
+# Example 2: 4x4 matrix
+matrix_4x4 = [
+    [1,  2,  3,  4],
+    [5,  6,  7,  8],
+    [9,  10, 11, 12],
+    [13, 14, 15, 16]
+]
+
+print_matrix(matrix_4x4, "4x4 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_4x4)
+print("Spiral traversal result:", spiral_result)
+
+# Example 3: Rectangular matrix (3x4)
+matrix_3x4 = [
+    [1,  2,  3,  4],
+    [5,  6,  7,  8],
+    [9,  10, 11, 12]
+]
+
+print_matrix(matrix_3x4, "3x4 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_3x4)
+print("Spiral traversal result:", spiral_result)
+
+# Example 4: Empty matrix (error case)
+try:
+    empty_matrix = []
+    spiral_result = spiral_traverse_matrix(empty_matrix)
+except ValueError as e:
+    print(f"\nError with empty matrix: {e}")
+
