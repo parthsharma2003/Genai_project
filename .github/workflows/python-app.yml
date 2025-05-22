@@ -61,7 +61,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Run changelog agent
-        run: python agent.py
+        run: python trigger.py
 
       - name: Upload changelog artifacts
         uses: actions/upload-artifact@v4      # updated to v4 for better reliability
