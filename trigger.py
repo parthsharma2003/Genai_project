@@ -495,3 +495,105 @@ try:
 except ValueError as e:
     print(f"\nError with empty matrix: {e}")
 
+def create_adjacency_matrix(graph, directed=False):
+    """
+    Create an adjacency matrix from a graph representation.
+    
+    Args:
+        graph (dict): Graph representation where keys are nodes and values are lists of connected nodes
+        directed (bool): Whether the graph is directed (True) or undirected (False)
+        
+    Returns:
+        list: Adjacency matrix as a 2D list
+        
+    Example:
+        graph = {
+            'A': ['B', 'C'],
+            'B': ['A', 'D'],
+            'C': ['A', 'D'],
+            'D': ['B', 'C']
+        }
+        # Creates:
+        # [[0, 1, 1, 0],
+        #  [1, 0, 0, 1],
+        #  [1, 0, 0, 1],
+        #  [0, 1, 1, 0]]
+    """
+    if not graph:
+        raise ValueError("Graph cannot be empty")
+    
+    # Get all unique nodes and sort them for consistent ordering
+    nodes = sorted(graph.keys())
+    n = len(nodes)
+    
+    # Create node to index mapping
+    node_to_index = {node: i for i, node in enumerate(nodes)}
+    
+    # Initialize adjacency matrix with zeros
+    adj_matrix = [[0 for _ in range(n)] for _ in range(n)]
+    
+    # Fill the adjacency matrix
+    for node, neighbors in graph.items():
+        i = node_to_index[node]
+        for neighbor in neighbors:
+            j = node_to_index[neighbor]
+            adj_matrix[i][j] = 1
+            if not directed:
+                adj_matrix[j][i] = 1  # For undirected graphs, make it symmetric
+    
+    return adj_matrix
+
+# Example usage of adjacency matrix creation
+print("\nAdjacency Matrix Examples:")
+
+# Example 1: Undirected graph
+undirected_graph = {
+    'A': ['B', 'C'],
+    'B': ['A', 'D'],
+    'C': ['A', 'D'],
+    'D': ['B', 'C']
+}
+
+print("\nUndirected Graph:")
+for node, neighbors in undirected_graph.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_undirected = create_adjacency_matrix(undirected_graph)
+print_matrix(adj_matrix_undirected, "Adjacency Matrix (Undirected)")
+
+# Example 2: Directed graph
+directed_graph = {
+    'A': ['B', 'C'],
+    'B': ['D'],
+    'C': ['D'],
+    'D': []
+}
+
+print("\nDirected Graph:")
+for node, neighbors in directed_graph.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_directed = create_adjacency_matrix(directed_graph, directed=True)
+print_matrix(adj_matrix_directed, "Adjacency Matrix (Directed)")
+
+# Example 3: Graph with self-loops
+graph_with_loops = {
+    'A': ['A', 'B'],
+    'B': ['A', 'B', 'C'],
+    'C': ['B', 'C']
+}
+
+print("\nGraph with Self-loops:")
+for node, neighbors in graph_with_loops.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_loops = create_adjacency_matrix(graph_with_loops)
+print_matrix(adj_matrix_loops, "Adjacency Matrix (with Self-loops)")
+
+# Example 4: Empty graph (error case)
+try:
+    empty_graph = {}
+    adj_matrix = create_adjacency_matrix(empty_graph)
+except ValueError as e:
+    print(f"\nError with empty graph: {e}")
+
