@@ -113,7 +113,7 @@ def validate_confluence_settings(domain, space, user, token):
     # Validate space key
     if not space:
         errors.append("CONF_SPACE is not set")
-    elif len(space) > 10:  # Space keys are typically short
+    elif not space.startswith('~') and len(space) > 10:  # Allow longer keys for personal spaces
         errors.append(f"CONF_SPACE appears to be too long ({len(space)} chars). Space keys are typically 2-10 characters.")
     
     # Validate credentials
@@ -144,33 +144,35 @@ def publish_to_confluence(title, html, space, domain, auth):
     # Ensure domain is properly formatted for Confluence Cloud
     if not domain.startswith('https://'):
         domain = f"https://{domain}"
-    if not domain.endswith('/'):
-        domain = f"{domain}/"
+    if domain.endswith('/'):
+        domain = domain.rstrip('/')
     
-    url = f"{domain}rest/api/content"
+    # Construct the API URL
+    url = f"{domain}/wiki/api/v2/pages"
     logger.info(f"Confluence API URL: {url}")
     logger.info(f"Confluence Space: {space}")
+    
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
+    
     data = {
-        "type": "page",
+        "spaceId": space,
+        "status": "current",
         "title": title,
-        "space": {"key": space},
         "body": {
-            "storage": {
-                "value": html,
-                "representation": "storage"
-            }
+            "representation": "storage",
+            "value": html
         }
     }
+    
     try:
         logger.info(f"Making request to Confluence API...")
         response = requests.post(url, json=data, headers=headers, auth=auth)
         response.raise_for_status()
         page_id = response.json()["id"]
-        page_url = f"{domain}pages/viewpage.action?pageId={page_id}"
+        page_url = f"{domain}/wiki/spaces/{space}/pages/{page_id}"
         logger.info(f"Successfully published to Confluence: {page_url}")
         print(f"\n=== Confluence Page Created ===")
         print(f"Title: {title}")
@@ -187,7 +189,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(f"Domain format: {domain.split('.')[-2:] if '.' in domain else 'Invalid format'}")
         print(f"Space key length: {len(space)} characters")
         print(f"Title: {title}")
-        print(f"API Endpoint: /rest/api/content")
+        print(f"API Endpoint: /wiki/api/v2/pages")
         print(f"Full URL: {url}")
         print(f"===================================\n")
         return None
