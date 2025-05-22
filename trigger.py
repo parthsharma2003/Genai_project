@@ -246,3 +246,87 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
+def print_matrix(matrix, title="Matrix"):
+    """
+    Print a matrix in a nicely formatted way.
+    
+    Args:
+        matrix (list): Matrix to print as a 2D list
+        title (str): Optional title for the matrix display
+    """
+    if not matrix:
+        print(f"{title}: Empty matrix")
+        return
+        
+    print(f"\n{title}:")
+    # Find the maximum width of any element for proper alignment
+    max_width = max(len(str(element)) for row in matrix for element in row)
+    
+    # Print each row with proper alignment
+    for row in matrix:
+        print("│", end=" ")
+        for element in row:
+            print(f"{str(element):>{max_width}}", end=" ")
+        print("│")
+    print()  # Add a blank line after matrix
+
+# Example usage of matrix printing
+test_matrix = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print_matrix(test_matrix, "Test Matrix")
+
+# Example with different sized numbers
+test_matrix2 = [
+    [1, 200, 3],
+    [40, 5, 6000],
+    [7, 800, 9]
+]
+
+print_matrix(test_matrix2, "Test Matrix with Different Sized Numbers")
+
+# Example with the matrix operations
+matrix1 = [
+    [10, 20, 30],
+    [40, 50, 60],
+    [70, 80, 90]
+]
+
+matrix2 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+try:
+    # Addition
+    result_add = add_matrices(matrix1, matrix2)
+    print_matrix(matrix1, "Matrix 1")
+    print_matrix(matrix2, "Matrix 2")
+    print_matrix(result_add, "Result of Addition")
+    
+    # Subtraction
+    result_sub = subtract_matrices(matrix1, matrix2)
+    print_matrix(result_sub, "Result of Subtraction")
+    
+    # Multiplication
+    matrix3 = [
+        [1, 2],
+        [3, 4],
+        [5, 6]
+    ]
+    matrix4 = [
+        [7, 8, 9],
+        [10, 11, 12]
+    ]
+    result_mul = multiply_matrices(matrix3, matrix4)
+    print_matrix(matrix3, "Matrix 3")
+    print_matrix(matrix4, "Matrix 4")
+    print_matrix(result_mul, "Result of Multiplication")
+    
+except ValueError as e:
+    print(f"Error: {e}")
+
