@@ -19,6 +19,7 @@ jobs:
       PROJECT_NAME:     "MyProject"
       CHANGELOG_FORMAT: "markdown"
       STAGE_NAME:       "github-actions"
+      VERSION:          ${{ github.sha }}  # Using commit SHA as version
 
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
@@ -56,6 +57,11 @@ jobs:
           git log -1 --pretty=%B >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+          # Get the diff between the current commit and its parent
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            # If it's a shallow clone, fetch the parent commit
+            git fetch --unshallow
+          fi
           echo "COMMIT_DIFF<<EOF" >> $GITHUB_ENV
           git diff ${{ github.sha }}^! >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
