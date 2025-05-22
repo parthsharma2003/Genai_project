@@ -66,20 +66,46 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     {commit_diff}
     ```
 
-    Generate a structured changelog with the following sections:
-    1. Date: Today's date
-    2. What's New: New features and improvements
-    3. Bug Fixes: Any bug fixes or issues resolved
-    4. How to Upgrade: Instructions for upgrading to this version
-    5. Deprecated: Any deprecated features or functionality
+    Generate a structured changelog with the following sections, using emojis and symbols:
+    1. 📅 Date: Today's date
+    2. ✨ What's New: New features and improvements
+    3. 🐛 Bug Fixes: Any bug fixes or issues resolved
+    4. 🔄 How to Upgrade: Instructions for upgrading to this version
+    5. ⚠️ Deprecated: Any deprecated features or functionality
 
     For each section:
     - Use clear, concise bullet points
     - Focus on user-facing changes
     - Include relevant technical details where necessary
     - If a section has no changes, mark it as "No changes in this version"
+    - Use appropriate emojis for different types of changes:
+      * ✨ for new features
+      * 🐛 for bug fixes
+      * 🔧 for improvements
+      * 🚀 for performance changes
+      * 📝 for documentation updates
+      * 🔒 for security updates
+      * ⚠️ for deprecations
+      * 🔄 for upgrade instructions
 
-    Output the changelog in Markdown format with proper headers and sections.
+    Format the output in Markdown with proper headers and sections.
+    Example format:
+    # 📅 Date: YYYY-MM-DD
+
+    ## ✨ What's New
+    - ✨ New feature 1
+    - 🔧 Improvement 1
+
+    ## 🐛 Bug Fixes
+    - 🐛 Fixed issue 1
+    - 🔧 Resolved problem 2
+
+    ## 🔄 How to Upgrade
+    - Step 1
+    - Step 2
+
+    ## ⚠️ Deprecated
+    - Feature X is now deprecated
     """
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))

@@ -91,3 +91,81 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
+def multiply_matrices(matrix1, matrix2):
+    """
+    Multiply two matrices.
+    
+    Args:
+        matrix1 (list): First matrix as a 2D list
+        matrix2 (list): Second matrix as a 2D list
+        
+    Returns:
+        list: Resultant matrix after multiplication
+        
+    Raises:
+        ValueError: If matrices cannot be multiplied (invalid dimensions)
+    """
+    # Check if matrices are empty
+    if not matrix1 or not matrix2:
+        raise ValueError("Matrices cannot be empty")
+    
+    # Check if matrices can be multiplied
+    if len(matrix1[0]) != len(matrix2):
+        raise ValueError("Invalid matrix dimensions for multiplication")
+    
+    # Initialize result matrix with zeros
+    result = [[0 for _ in range(len(matrix2[0]))] for _ in range(len(matrix1))]
+    
+    # Perform matrix multiplication
+    for i in range(len(matrix1)):
+        for j in range(len(matrix2[0])):
+            for k in range(len(matrix2)):
+                result[i][j] += matrix1[i][k] * matrix2[k][j]
+    
+    return result
+
+# Example usage of matrix multiplication
+matrix1 = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+matrix2 = [
+    [7, 8],
+    [9, 10],
+    [11, 12]
+]
+
+try:
+    result = multiply_matrices(matrix1, matrix2)
+    print("\nMatrix Multiplication Example:")
+    print("\nMatrix 1:")
+    for row in matrix1:
+        print(row)
+    print("\nMatrix 2:")
+    for row in matrix2:
+        print(row)
+    print("\nResultant Matrix (Matrix 1 × Matrix 2):")
+    for row in result:
+        print(row)
+except ValueError as e:
+    print(f"Error: {e}")
+
+# Example of invalid multiplication
+invalid_matrix1 = [
+    [1, 2],
+    [3, 4]
+]
+
+invalid_matrix2 = [
+    [5, 6, 7],
+    [8, 9, 10],
+    [11, 12, 13]
+]
+
+print("\nInvalid Matrix Multiplication Example:")
+try:
+    result = multiply_matrices(invalid_matrix1, invalid_matrix2)
+except ValueError as e:
+    print(f"Error: {e}")
+
