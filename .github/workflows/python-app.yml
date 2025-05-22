@@ -7,7 +7,7 @@ on: [push]
 
 jobs:
   Explore-GitHub-Actions:
-    runs-on: linux-runner   # or 'ubuntu-latest' to use GitHub-hosted
+    runs-on: ubuntu-latest   # switched to GitHub-hosted runner for better Python support
 
     env:
       # Confluence & Google API credentials (set these in Settings → Secrets)
@@ -39,7 +39,7 @@ jobs:
       - name: Set up Python 3.x
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
       - name: Install dependencies
         run: |
