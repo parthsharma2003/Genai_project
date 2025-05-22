@@ -8,6 +8,8 @@ from requests.auth import HTTPBasicAuth
 import requests
 from jinja2 import Environment, FileSystemLoader, Template
 from tenacity import retry, stop_after_attempt, wait_exponential
+from bs4 import BeautifulSoup
+from datetime import datetime
 
 # Set up logging
 log_dir = Path("logs")
@@ -67,11 +69,10 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     ```
 
     Generate a structured changelog with the following sections:
-    1. Date: Today's date
-    2. What's New: New features and improvements
-    3. Bug Fixes: Any bug fixes or issues resolved
-    4. How to Upgrade: Instructions for upgrading to this version
-    5. Deprecated: Any deprecated features or functionality
+    - What's New: New features and improvements
+    - Bug Fixes: Any bug fixes or issues resolved
+    - How to Upgrade: Instructions for upgrading to this version
+    - Deprecated: Any deprecated features or functionality
 
     For each section:
     - Use clear, concise bullet points
@@ -79,7 +80,7 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     - Include relevant technical details where necessary
     - If a section has no changes, mark it as "No changes in this version"
 
-    Output the changelog in Markdown format with proper headers and sections.
+    Output the changelog in Markdown format with proper headers and sections. Do not include the date or version in the output.
     """
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -115,98 +116,100 @@ def generate_changelog(prompt):
 def validate_confluence_settings(domain, space, user, token):
     """Validate Confluence settings before attempting to publish."""
     errors = []
-    
-    # Validate domain
     if not domain:
         errors.append("CONF_DOMAIN is not set")
     elif not domain.endswith('atlassian.net'):
         errors.append("CONF_DOMAIN should end with 'atlassian.net'")
-    
-    # Validate space key
     if not space:
         errors.append("CONF_SPACE is not set")
-    elif not space.startswith('~') and len(space) > 10:  # Allow longer keys for personal spaces
+    elif not space.startswith('~') and len(space) > 10:
         errors.append(f"CONF_SPACE appears to be too long ({len(space)} chars). Space keys are typically 2-10 characters.")
-    
-    # Validate credentials
     if not user:
         errors.append("CONF_USER is not set")
     elif '@' not in user:
         errors.append("CONF_USER should be an email address")
-    
     if not token:
         errors.append("CONF_TOKEN is not set")
-    
     return errors
 
-def publish_to_confluence(title, html, space, domain, auth):
+def publish_to_confluence(title, new_entry_html, space, domain, auth):
+    """Publish or update changelog to Confluence."""
     logger.info(f"Attempting to publish to Confluence: {title}")
 
     errors = validate_confluence_settings(domain, space, auth.username, auth.password)
     if errors:
         error_msg = "\n".join(errors)
         logger.error(f"Confluence settings validation failed:\n{error_msg}")
-        print(f"\n=== Confluence Settings Validation Failed ===")
-        print(error_msg)
-        print(f"===========================================\n")
+        print(f"\n=== Confluence Settings Validation Failed ===\n{error_msg}\n=======================================\n")
         return None
 
     if not domain.startswith('https://'):
         domain = f"https://{domain}"
     if domain.endswith('/'):
         domain = domain.rstrip('/')
-    # Add /wiki for Atlassian Cloud
     if not domain.endswith('/wiki'):
         domain += '/wiki'
 
-    url = f"{domain}/rest/api/content"
-    logger.info(f"Confluence API URL: {url}")
-
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    data = {
-        "type": "page",
-        "title": title,
-        "space": {
-            "key": space
-        },
-        "body": {
-            "storage": {
-                "value": html,
-                "representation": "storage"
+    # Search for existing page
+    search_url = f"{domain}/rest/api/content?title={title}&spaceKey={space}"
+    response = requests.get(search_url, auth=auth)
+    
+    if response.status_code == 200 and len(response.json()['results']) > 0:
+        # Page exists, update it
+        page = response.json()['results'][0]
+        page_id = page['id']
+        current_version = page['version']['number']
+        existing_content = page['body']['storage']['value']
+        
+        # Parse and update content
+        soup = BeautifulSoup(existing_content, 'html.parser')
+        entries_div = soup.find('div', class_='changelog-entries')
+        if entries_div:
+            new_entry_soup = BeautifulSoup(new_entry_html, 'html.parser')
+            entries_div.insert(0, new_entry_soup)  # Prepend new entry
+            new_content = str(soup)
+        else:
+            new_content = new_entry_html + existing_content  # Fallback prepend
+        
+        # Update page
+        update_url = f"{domain}/rest/api/content/{page_id}"
+        update_data = {
+            "version": {"number": current_version + 1},
+            "title": title,
+            "type": "page",
+            "body": {
+                "storage": {
+                    "value": new_content,
+                    "representation": "storage"
+                }
             }
         }
-    }
-
-    try:
-        logger.info(f"Making request to Confluence API...")
-        response = requests.post(url, json=data, headers=headers, auth=auth)
-        response.raise_for_status()
-        page_id = response.json()["id"]
+        update_response = requests.put(update_url, json=update_data, auth=auth)
+        update_response.raise_for_status()
+        logger.info("Updated existing Confluence page")
         page_url = f"{domain}/pages/viewpage.action?pageId={page_id}"
-        logger.info(f"Successfully published to Confluence: {page_url}")
-        print(f"\n=== Confluence Page Created ===")
-        print(f"Title: {title}")
-        print(f"URL: {page_url}")
-        print(f"Space: {space}")
-        print(f"==============================\n")
-        return page_url
-    except Exception as e:
-        logger.error(f"Confluence publishing failed: {str(e)}")
-        logger.error(f"Request URL: {url}")
-        logger.error(f"Request data: {data}")
-        print(f"\n=== Confluence Publishing Failed ===")
-        print(f"Error: {str(e)}")
-        print(f"Domain format: {domain.split('.')[-2:] if '.' in domain else 'Invalid format'}")
-        print(f"Space key length: {len(space)} characters")
-        print(f"Title: {title}")
-        print(f"API Endpoint: /rest/api/content")
-        print(f"Full URL: {url}")
-        print(f"===================================\n")
-        return None
+    else:
+        # Page doesn't exist, create it
+        create_url = f"{domain}/rest/api/content"
+        create_data = {
+            "type": "page",
+            "title": title,
+            "space": {"key": space},
+            "body": {
+                "storage": {
+                    "value": f'<h1>{title}</h1><div class="changelog-entries">{new_entry_html}</div>',
+                    "representation": "storage"
+                }
+            }
+        }
+        create_response = requests.post(create_url, json=create_data, auth=auth)
+        create_response.raise_for_status()
+        page_id = create_response.json()['id']
+        page_url = f"{domain}/pages/viewpage.action?pageId={page_id}"
+        logger.info("Created new Confluence page")
 
+    print(f"\n=== Confluence Page Updated ===\nTitle: {title}\nURL: {page_url}\nSpace: {space}\n==============================\n")
+    return page_url
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
     """Render HTML using Jinja2 template or fallback."""
@@ -225,7 +228,6 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
         return html_output
     except Exception as e:
         logger.warning(f"HTML rendering failed, using fallback template: {str(e)}")
-        # Fallback template with improved styling
         fallback_template = """
         <!DOCTYPE html>
         <html lang="en">
@@ -234,57 +236,15 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{{ project_name }} Changelog</title>
             <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 40px;
-                    line-height: 1.6;
-                    color: #333;
-                }
-                .changelog { 
-                    max-width: 800px; 
-                    margin: auto;
-                    background: #fff;
-                    padding: 20px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                h1 { 
-                    color: #2c3e50;
-                    border-bottom: 2px solid #eee;
-                    padding-bottom: 10px;
-                }
-                h2 {
-                    color: #34495e;
-                    margin-top: 30px;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 5px;
-                }
-                .meta { 
-                    color: #666; 
-                    font-size: 0.9em;
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 4px;
-                    margin-top: 20px;
-                }
-                ul {
-                    padding-left: 20px;
-                }
-                li {
-                    margin-bottom: 8px;
-                }
-                code {
-                    background: #f8f9fa;
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                    font-family: monospace;
-                }
-                pre {
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                }
+                body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+                .changelog { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+                h2 { color: #34495e; margin-top: 30px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+                .meta { color: #666; font-size: 0.9em; background: #f8f9fa; padding: 15px; border-radius: 4px; margin-top: 20px; }
+                ul { padding-left: 20px; }
+                li { margin-bottom: 8px; }
+                code { background: #f8f9fa; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+                pre { background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; }
             </style>
         </head>
         <body>
@@ -316,10 +276,7 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
 def main():
     """Main function to generate and publish changelog."""
     try:
-        # Validate environment variables
         validate_env_vars()
-
-        # Build prompt and generate changelog
         prompt = build_prompt(
             commit_msg=os.getenv("COMMIT_MSG"),
             commit_diff=os.getenv("COMMIT_DIFF"),
@@ -329,56 +286,53 @@ def main():
         )
         markdown_out = generate_changelog(prompt)
 
-        # Save Markdown output
         out_dir = Path("output")
         out_dir.mkdir(exist_ok=True, parents=True)
         (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
         logger.info(f"Markdown changelog written to {out_dir / 'changelog.md'}")
-        # Flush logs
         for handler in logger.handlers:
             handler.flush()
 
-        # Publish to Confluence
+        # Create new entry with version and date
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        version = os.getenv("VERSION")
+        new_entry_md = f"## Version {version} - {current_date}\n\n{markdown_out}"
+        new_entry_html = f'<div class="changelog-entry">{markdown.markdown(new_entry_md, extensions=["tables", "fenced_code"])}</div>'
+
         auth = HTTPBasicAuth(os.getenv("CONF_USER"), os.getenv("CONF_TOKEN"))
+        project_name = os.getenv("PROJECT_NAME")
         page_url = publish_to_confluence(
-            title=f"{os.getenv('PROJECT_NAME')} – {os.getenv('VERSION')}",
-            html=markdown.markdown(markdown_out),
+            title=f"{project_name} – Changelog",
+            new_entry_html=new_entry_html,
             space=os.getenv("CONF_SPACE"),
             domain=os.getenv("CONF_DOMAIN"),
             auth=auth
         )
-        # Flush logs
         for handler in logger.handlers:
             handler.flush()
 
-        # Render HTML
         html_out = render_html(
             markdown_content=markdown_out,
-            project_name=os.getenv("PROJECT_NAME"),
+            project_name=project_name,
             page_url=page_url,
             commit_hash=os.getenv("COMMIT_HASH"),
-            version=os.getenv("VERSION")
+            version=version
         )
         if html_out:
             (out_dir / "changelog.html").write_text(html_out, encoding="utf-8")
             logger.info(f"HTML changelog written to {out_dir / 'changelog.html'}")
         else:
             logger.warning("Skipping HTML changelog due to rendering failure")
-        # Flush logs
         for handler in logger.handlers:
             handler.flush()
 
-        # Ensure files are written
         os.sync()
         logger.info("Completed changelog generation, syncing files")
-        # Small delay to ensure file writes
         import time
         time.sleep(1)
-
         sys.exit(0)
     except Exception as e:
         logger.error(f"Fatal error in main: {str(e)}")
-        # Ensure logs are flushed before exiting
         for handler in logger.handlers:
             handler.flush()
         sys.exit(1)
