@@ -64,7 +64,7 @@ jobs:
         run: python agent.py
 
       - name: Upload changelog artifacts
-        uses: actions/upload-artifact@v2      # pinned to v2 for self-hosted
+        uses: actions/upload-artifact@v4      # updated to v4 for better reliability
         with:
           name: changelog
           path: |
