@@ -8,6 +8,7 @@ from requests.auth import HTTPBasicAuth
 import requests
 from jinja2 import Environment, FileSystemLoader, Template
 from tenacity import retry, stop_after_attempt, wait_exponential
+from datetime import datetime
 
 # Set up logging
 log_dir = Path("/app/logs")
@@ -33,6 +34,13 @@ try:
     logger.info("Test write to log file succeeded")
 except Exception as e:
     logger.error("Failed to write to log file: %s", str(e))
+
+# Confluence API configuration
+CONF_DOMAIN = os.getenv('CONF_DOMAIN')
+CONF_SPACE = os.getenv('CONF_SPACE')
+CONF_USER = os.getenv('CONF_USER')
+CONF_TOKEN = os.getenv('CONF_TOKEN')
+PROJECT_NAME = os.getenv('PROJECT_NAME', 'MyProject')
 
 def validate_env_vars():
     """Validate required environment variables."""
@@ -100,32 +108,65 @@ def generate_changelog(prompt):
             logger.info("Generating fallback changelog from commit message")
             return f"- {os.getenv('COMMIT_MSG')}"
 
-def publish_to_confluence(title, html, space, domain, auth):
-    """Publish content to Confluence."""
-    logger.info(f"Attempting to publish to Confluence: {title}")
-    url = f"https://{domain}/rest/api/content"
-    headers = {"Content-Type": "application/json"}
+def get_confluence_page_id(title):
+    """Get the page ID for a given title in Confluence."""
+    url = f"https://{CONF_DOMAIN}/wiki/api/v2/pages"
+    headers = {
+        'Authorization': f'Basic {CONF_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    params = {
+        'space-id': CONF_SPACE,
+        'title': title
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+        if data['results']:
+            return data['results'][0]['id']
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error getting page ID: {str(e)}")
+        return None
+
+def create_or_update_confluence_page(title, content):
+    """Create or update a page in Confluence."""
+    page_id = get_confluence_page_id(title)
+    
+    url = f"https://{CONF_DOMAIN}/wiki/api/v2/pages"
+    if page_id:
+        url = f"{url}/{page_id}"
+    
+    headers = {
+        'Authorization': f'Basic {CONF_TOKEN}',
+        'Content-Type': 'application/json'
+    }
+    
     data = {
-        "type": "page",
-        "title": title,
-        "space": {"key": space},
-        "body": {
-            "storage": {
-                "value": html,
-                "representation": "storage"
-            }
+        'spaceId': CONF_SPACE,
+        'title': title,
+        'body': {
+            'representation': 'storage',
+            'value': content
         }
     }
+    
     try:
-        response = requests.post(url, json=data, headers=headers, auth=auth)
+        if page_id:
+            # Update existing page
+            response = requests.put(url, headers=headers, json=data)
+        else:
+            # Create new page
+            response = requests.post(url, headers=headers, json=data)
+        
         response.raise_for_status()
-        page_id = response.json()["id"]
-        page_url = f"https://{domain}/pages/viewpage.action?pageId={page_id}"
-        logger.info(f"Successfully published to Confluence: {page_url}")
-        return page_url
-    except Exception as e:
-        logger.error(f"Confluence publishing failed: {str(e)}")
-        return None
+        logger.info(f"Successfully {'updated' if page_id else 'created'} page: {title}")
+        return True
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error {'updating' if page_id else 'creating'} page: {str(e)}")
+        return False
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
     """Render HTML using Jinja2 template or fallback."""
@@ -211,14 +252,10 @@ def main():
             handler.flush()
 
         # Publish to Confluence
-        auth = HTTPBasicAuth(os.getenv("CONF_USER"), os.getenv("CONF_TOKEN"))
-        page_url = publish_to_confluence(
-            title=f"{os.getenv('PROJECT_NAME')} – {os.getenv('VERSION')}",
-            html=markdown.markdown(markdown_out),
-            space=os.getenv("CONF_SPACE"),
-            domain=os.getenv("CONF_DOMAIN"),
-            auth=auth
-        )
+        if create_or_update_confluence_page(f"{PROJECT_NAME} - Changelog - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", markdown_out):
+            logger.info("Successfully stored changelog in Confluence")
+        else:
+            logger.warning("Failed to store changelog in Confluence")
         # Flush logs
         for handler in logger.handlers:
             handler.flush()
@@ -226,8 +263,8 @@ def main():
         # Render HTML
         html_out = render_html(
             markdown_content=markdown_out,
-            project_name=os.getenv("PROJECT_NAME"),
-            page_url=page_url,
+            project_name=PROJECT_NAME,
+            page_url=None,
             commit_hash=os.getenv("COMMIT_HASH"),
             version=os.getenv("VERSION")
         )
