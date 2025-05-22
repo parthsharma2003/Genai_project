@@ -103,10 +103,19 @@ def generate_changelog(prompt):
 def publish_to_confluence(title, html, space, domain, auth):
     """Publish content to Confluence."""
     logger.info(f"Attempting to publish to Confluence: {title}")
-    url = f"https://{domain}/rest/api/content"
+    # Ensure domain is properly formatted for Confluence Cloud
+    if not domain.startswith('https://'):
+        domain = f"https://{domain}"
+    if not domain.endswith('/'):
+        domain = f"{domain}/"
+    
+    url = f"{domain}rest/api/content"
     logger.info(f"Confluence API URL: {url}")
     logger.info(f"Confluence Space: {space}")
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
     data = {
         "type": "page",
         "title": title,
@@ -123,7 +132,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         response = requests.post(url, json=data, headers=headers, auth=auth)
         response.raise_for_status()
         page_id = response.json()["id"]
-        page_url = f"https://{domain}/pages/viewpage.action?pageId={page_id}"
+        page_url = f"{domain}pages/viewpage.action?pageId={page_id}"
         logger.info(f"Successfully published to Confluence: {page_url}")
         print(f"\n=== Confluence Page Created ===")
         print(f"Title: {title}")
@@ -141,6 +150,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(f"Space key length: {len(space)} characters")
         print(f"Title: {title}")
         print(f"API Endpoint: /rest/api/content")
+        print(f"Full URL: {url}")
         print(f"===================================\n")
         return None
 
