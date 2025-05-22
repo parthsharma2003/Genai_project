@@ -100,9 +100,47 @@ def generate_changelog(prompt):
             logger.info("Generating fallback changelog from commit message")
             return f"- {os.getenv('COMMIT_MSG')}"
 
+def validate_confluence_settings(domain, space, user, token):
+    """Validate Confluence settings before attempting to publish."""
+    errors = []
+    
+    # Validate domain
+    if not domain:
+        errors.append("CONF_DOMAIN is not set")
+    elif not domain.endswith('atlassian.net'):
+        errors.append("CONF_DOMAIN should end with 'atlassian.net'")
+    
+    # Validate space key
+    if not space:
+        errors.append("CONF_SPACE is not set")
+    elif len(space) > 10:  # Space keys are typically short
+        errors.append(f"CONF_SPACE appears to be too long ({len(space)} chars). Space keys are typically 2-10 characters.")
+    
+    # Validate credentials
+    if not user:
+        errors.append("CONF_USER is not set")
+    elif '@' not in user:
+        errors.append("CONF_USER should be an email address")
+    
+    if not token:
+        errors.append("CONF_TOKEN is not set")
+    
+    return errors
+
 def publish_to_confluence(title, html, space, domain, auth):
     """Publish content to Confluence."""
     logger.info(f"Attempting to publish to Confluence: {title}")
+    
+    # Validate settings first
+    errors = validate_confluence_settings(domain, space, auth.username, auth.password)
+    if errors:
+        error_msg = "\n".join(errors)
+        logger.error(f"Confluence settings validation failed:\n{error_msg}")
+        print(f"\n=== Confluence Settings Validation Failed ===")
+        print(error_msg)
+        print(f"===========================================\n")
+        return None
+    
     # Ensure domain is properly formatted for Confluence Cloud
     if not domain.startswith('https://'):
         domain = f"https://{domain}"
