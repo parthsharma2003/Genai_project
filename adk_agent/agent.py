@@ -147,8 +147,8 @@ def publish_to_confluence(title, html, space, domain, auth):
     if domain.endswith('/'):
         domain = domain.rstrip('/')
     
-    # Construct the API URL
-    url = f"{domain}/wiki/rest/api/content"
+    # Construct the API URL - using the Cloud API format
+    url = f"{domain}/rest/api/content"
     logger.info(f"Confluence API URL: {url}")
     logger.info(f"Confluence Space: {space}")
     
@@ -176,7 +176,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         response = requests.post(url, json=data, headers=headers, auth=auth)
         response.raise_for_status()
         page_id = response.json()["id"]
-        page_url = f"{domain}/wiki/spaces/{space}/pages/{page_id}"
+        page_url = f"{domain}/pages/viewpage.action?pageId={page_id}"
         logger.info(f"Successfully published to Confluence: {page_url}")
         print(f"\n=== Confluence Page Created ===")
         print(f"Title: {title}")
@@ -193,7 +193,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(f"Domain format: {domain.split('.')[-2:] if '.' in domain else 'Invalid format'}")
         print(f"Space key length: {len(space)} characters")
         print(f"Title: {title}")
-        print(f"API Endpoint: /wiki/rest/api/content")
+        print(f"API Endpoint: /rest/api/content")
         print(f"Full URL: {url}")
         print(f"===================================\n")
         return None
