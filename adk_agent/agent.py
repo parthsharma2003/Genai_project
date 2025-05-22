@@ -137,9 +137,10 @@ def publish_to_confluence(title, html, space, domain, auth):
         logger.error(f"Request data: {data}")
         print(f"\n=== Confluence Publishing Failed ===")
         print(f"Error: {str(e)}")
-        print(f"Domain: {domain}")
-        print(f"Space: {space}")
+        print(f"Domain format: {domain.split('.')[-2:] if '.' in domain else 'Invalid format'}")
+        print(f"Space key length: {len(space)} characters")
         print(f"Title: {title}")
+        print(f"API Endpoint: /rest/api/content")
         print(f"===================================\n")
         return None
 
