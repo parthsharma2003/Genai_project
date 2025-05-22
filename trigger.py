@@ -1,32 +1,33 @@
-print('hiii datagrokr')
-print('changes')
-print('changes 2')
-print('changes 3')
-print('changes 4')
-print('changes 5')
-print('changes 6')
-print('changes 7')
-print('changes 8')
-print('changes 9')
-print('changes 10')
-print('changes 11')
-print('changes 12')
-print('changes 13')
-print('changes 14')
-print('changes 15')
-print('changes 16')
-print('changes 17')
-print('changes 18')
-print('changes 19')
-print('changes 20')
-print('changes 21')
-print('changes 22')
-print('changes 23')
-print('changes 24')
-print('changes 25')
-print('changes 26')
-print('changes 27')
-print('changes 28')
-print('changes 29')
-print('changes 30')
-print('changes 31')
+def binary_search_matrix(matrix, target):
+    if not matrix or not matrix[0]:
+        return False
+
+    rows = len(matrix)
+    cols = len(matrix[0])
+
+    left, right = 0, rows * cols - 1
+
+    while left <= right:
+        mid = (left + right) // 2
+        # Convert mid to matrix indices
+        row = mid // cols
+        col = mid % cols
+
+        if matrix[row][col] == target:
+            return True
+        elif matrix[row][col] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return False
+
+# Example usage:
+matrix = [
+    [1, 3, 5, 7],
+    [10, 11, 16, 20],
+    [23, 30, 34, 60]
+]
+target = 3
+
+print(binary_search_matrix(matrix, target))  # Output: True
