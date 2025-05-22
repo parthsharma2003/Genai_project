@@ -425,3 +425,73 @@ try:
 except ValueError as e:
     print(f"\nError with empty matrix: {e}")
 
+def transpose_matrix(matrix):
+    """
+    Transpose a matrix (convert rows to columns and columns to rows).
+    
+    Args:
+        matrix (list): Input matrix as a 2D list
+        
+    Returns:
+        list: Transposed matrix
+        
+    Raises:
+        ValueError: If matrix is empty
+    """
+    if not matrix or not matrix[0]:
+        raise ValueError("Matrix cannot be empty")
+    
+    # Get dimensions
+    rows = len(matrix)
+    cols = len(matrix[0])
+    
+    # Create a new matrix with swapped dimensions
+    transposed = [[0 for _ in range(rows)] for _ in range(cols)]
+    
+    # Fill the transposed matrix
+    for i in range(rows):
+        for j in range(cols):
+            transposed[j][i] = matrix[i][j]
+    
+    return transposed
+
+# Example usage of matrix transpose
+print("\nMatrix Transpose Examples:")
+
+# Example 1: Square matrix (3x3)
+matrix_3x3 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print_matrix(matrix_3x3, "Original 3x3 Matrix")
+transposed_3x3 = transpose_matrix(matrix_3x3)
+print_matrix(transposed_3x3, "Transposed 3x3 Matrix")
+
+# Example 2: Rectangular matrix (2x4)
+matrix_2x4 = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8]
+]
+
+print_matrix(matrix_2x4, "Original 2x4 Matrix")
+transposed_2x4 = transpose_matrix(matrix_2x4)
+print_matrix(transposed_2x4, "Transposed 2x4 Matrix (4x2)")
+
+# Example 3: Single row matrix
+matrix_1x3 = [
+    [1, 2, 3]
+]
+
+print_matrix(matrix_1x3, "Original 1x3 Matrix")
+transposed_1x3 = transpose_matrix(matrix_1x3)
+print_matrix(transposed_1x3, "Transposed 1x3 Matrix (3x1)")
+
+# Example 4: Empty matrix (error case)
+try:
+    empty_matrix = []
+    transposed = transpose_matrix(empty_matrix)
+except ValueError as e:
+    print(f"\nError with empty matrix: {e}")
+

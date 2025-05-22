@@ -57,9 +57,16 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     if not commit_diff or commit_diff == "No diff available":
         logger.warning("Commit diff is empty, using commit message only")
         commit_diff = "No diff provided"
+    
+    # Get branch name from environment
+    branch_name = os.getenv("BRANCH_NAME", "unknown")
+    event_type = os.getenv("EVENT_TYPE", "push")
+    
     return f"""
     You are an AI assistant tasked with generating a changelog for the {project_name} project.
     Version: {version}
+    Branch: {branch_name}
+    Event Type: {event_type}
     Commit Message: {commit_msg}
     Commit Diff:
     ```
@@ -68,10 +75,11 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
 
     Generate a structured changelog with the following sections, using emojis and symbols:
     1. 📅 Date: Today's date
-    2. ✨ What's New: New features and improvements
-    3. 🐛 Bug Fixes: Any bug fixes or issues resolved
-    4. 🔄 How to Upgrade: Instructions for upgrading to this version
-    5. ⚠️ Deprecated: Any deprecated features or functionality
+    2. 🌿 Branch: The branch where changes were made
+    3. ✨ What's New: New features and improvements
+    4. 🐛 Bug Fixes: Any bug fixes or issues resolved
+    5. 🔄 How to Upgrade: Instructions for upgrading to this version
+    6. ⚠️ Deprecated: Any deprecated features or functionality
 
     For each section:
     - Use clear, concise bullet points
@@ -91,6 +99,9 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     Format the output in Markdown with proper headers and sections.
     Example format:
     # 📅 Date: YYYY-MM-DD
+
+    ## 🌿 Branch: branch-name
+    Changes made in this branch
 
     ## ✨ What's New
     - ✨ New feature 1
@@ -306,109 +317,73 @@ def publish_to_confluence(title, html, space, domain, auth):
 
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
-    """Render HTML using Jinja2 template or fallback."""
-    logger.info("Rendering HTML output")
-    try:
-        env = Environment(loader=FileSystemLoader("."))
-        template = env.get_template("changelog_template.html")
-        html_output = template.render(
-            project_name=project_name,
-            markdown_content=markdown.markdown(markdown_content, extensions=['tables', 'fenced_code']),
-            page_url=page_url or "Not published",
-            commit_hash=commit_hash,
-            current_date=version
-        )
-        logger.info("HTML rendered successfully from file")
-        return html_output
-    except Exception as e:
-        logger.warning(f"HTML rendering failed, using fallback template: {str(e)}")
-        # Fallback template with improved styling
-        fallback_template = """
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{{ project_name }} Changelog</title>
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    margin: 40px;
-                    line-height: 1.6;
-                    color: #333;
-                }
-                .changelog { 
-                    max-width: 800px; 
-                    margin: auto;
-                    background: #fff;
-                    padding: 20px;
-                    border-radius: 8px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                h1 { 
-                    color: #2c3e50;
-                    border-bottom: 2px solid #eee;
-                    padding-bottom: 10px;
-                }
-                h2 {
-                    color: #34495e;
-                    margin-top: 30px;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 5px;
-                }
-                .meta { 
-                    color: #666; 
-                    font-size: 0.9em;
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 4px;
-                    margin-top: 20px;
-                }
-                ul {
-                    padding-left: 20px;
-                }
-                li {
-                    margin-bottom: 8px;
-                }
-                code {
-                    background: #f8f9fa;
-                    padding: 2px 4px;
-                    border-radius: 3px;
-                    font-family: monospace;
-                }
-                pre {
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="changelog">
-                <h1>{{ project_name }} Changelog</h1>
-                {{ markdown_content | safe }}
-                <div class="meta">
-                    <p><strong>Confluence Page:</strong> {{ page_url }}</p>
-                    {% if commit_hash %}
-                    <p><strong>Commit:</strong> {{ commit_hash }}</p>
-                    {% endif %}
-                    <p><strong>Generated:</strong> {{ current_date }}</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        template = Template(fallback_template)
-        html_output = template.render(
-            project_name=project_name,
-            markdown_content=markdown.markdown(markdown_content, extensions=['tables', 'fenced_code']),
-            page_url=page_url or "Not published",
-            commit_hash=commit_hash,
-            current_date=version
-        )
-        logger.info("HTML rendered using fallback template")
-        return html_output
+    """Render the changelog in HTML format."""
+    # Get branch name from environment
+    branch_name = os.getenv("BRANCH_NAME", "unknown")
+    event_type = os.getenv("EVENT_TYPE", "push")
+    
+    # Convert markdown to HTML
+    html_content = markdown.markdown(markdown_content)
+    
+    # Create HTML template with branch information
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{project_name} Changelog</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }}
+            .branch-info {{
+                background-color: #f0f0f0;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 10px 0;
+            }}
+            .event-type {{
+                color: #666;
+                font-style: italic;
+            }}
+            h1, h2, h3 {{
+                color: #333;
+            }}
+            ul {{
+                list-style-type: none;
+                padding-left: 20px;
+            }}
+            li {{
+                margin: 5px 0;
+            }}
+            .footer {{
+                margin-top: 30px;
+                padding-top: 10px;
+                border-top: 1px solid #ccc;
+                font-size: 0.9em;
+                color: #666;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="branch-info">
+            <strong>Branch:</strong> {branch_name}
+            <span class="event-type">({event_type})</span>
+        </div>
+        {html_content}
+        <div class="footer">
+            <p>Version: {version}</p>
+            <p>Commit: {commit_hash}</p>
+            <p>Project: {project_name}</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_template
 
 def main():
     """Main function to generate and publish changelog."""
