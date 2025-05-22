@@ -10,7 +10,7 @@ from jinja2 import Environment, FileSystemLoader, Template
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Set up logging
-log_dir = Path("/app/logs")
+log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True, parents=True)
 logging.basicConfig(
     level=logging.INFO,
@@ -131,7 +131,7 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
     """Render HTML using Jinja2 template or fallback."""
     logger.info("Rendering HTML output")
     try:
-        env = Environment(loader=FileSystemLoader("/app"))
+        env = Environment(loader=FileSystemLoader("."))
         template = env.get_template("changelog_template.html")
         html_output = template.render(
             project_name=project_name,
@@ -202,7 +202,7 @@ def main():
         markdown_out = generate_changelog(prompt)
 
         # Save Markdown output
-        out_dir = Path("/app/output")
+        out_dir = Path("output")
         out_dir.mkdir(exist_ok=True, parents=True)
         (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
         logger.info(f"Markdown changelog written to {out_dir / 'changelog.md'}")
