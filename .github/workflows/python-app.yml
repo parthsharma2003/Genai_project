@@ -1,6 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
+# .github/workflows/python-app.yml
 
 name: GitHub Actions Demo
 run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
@@ -9,7 +7,7 @@ on: [push]
 
 jobs:
   Explore-GitHub-Actions:
-    runs-on: linux-runner
+    runs-on: linux-runner   # or 'ubuntu-latest' to use GitHub-hosted
 
     env:
       # Confluence & Google API credentials (set these in Settings → Secrets)
@@ -33,8 +31,7 @@ jobs:
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
       - run: echo "🖥️ The workflow is now ready to test your code on the runner."
       - name: List files in the repository
-        run: |
-          ls ${{ github.workspace }}
+        run: ls ${{ github.workspace }}
       - run: echo "🍏 This job's status is ${{ job.status }}."
 
       # ——— new Python & Confluence steps below ———
@@ -67,7 +64,7 @@ jobs:
         run: python agent.py
 
       - name: Upload changelog artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2      # pinned to v2 for self-hosted
         with:
           name: changelog
           path: |
