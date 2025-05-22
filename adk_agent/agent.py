@@ -148,7 +148,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         domain = domain.rstrip('/')
     
     # Construct the API URL
-    url = f"{domain}/wiki/api/v2/pages"
+    url = f"{domain}/wiki/rest/api/content"
     logger.info(f"Confluence API URL: {url}")
     logger.info(f"Confluence Space: {space}")
     
@@ -158,35 +158,21 @@ def publish_to_confluence(title, html, space, domain, auth):
     }
     
     data = {
-        "spaceId": space,
-        "status": "current",
+        "type": "page",
         "title": title,
-        "body": {
-            "representation": "storage",
-            "value": html
+        "space": {
+            "key": space
         },
-        "metadata": {
-            "properties": {
-                "editor": {
-                    "value": "v2"
-                }
+        "body": {
+            "storage": {
+                "value": html,
+                "representation": "storage"
             }
         }
     }
     
     try:
         logger.info(f"Making request to Confluence API...")
-        # First, try to get the space ID if we're using a space key
-        if not space.isdigit():
-            space_url = f"{domain}/wiki/api/v2/spaces"
-            space_response = requests.get(space_url, headers=headers, auth=auth)
-            space_response.raise_for_status()
-            spaces = space_response.json()["results"]
-            space_id = next((s["id"] for s in spaces if s["key"] == space), None)
-            if not space_id:
-                raise ValueError(f"Could not find space with key: {space}")
-            data["spaceId"] = space_id
-        
         response = requests.post(url, json=data, headers=headers, auth=auth)
         response.raise_for_status()
         page_id = response.json()["id"]
@@ -207,7 +193,7 @@ def publish_to_confluence(title, html, space, domain, auth):
         print(f"Domain format: {domain.split('.')[-2:] if '.' in domain else 'Invalid format'}")
         print(f"Space key length: {len(space)} characters")
         print(f"Title: {title}")
-        print(f"API Endpoint: /wiki/api/v2/pages")
+        print(f"API Endpoint: /wiki/rest/api/content")
         print(f"Full URL: {url}")
         print(f"===================================\n")
         return None
