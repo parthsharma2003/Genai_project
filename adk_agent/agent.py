@@ -383,9 +383,12 @@ def main():
     """Main function to generate and publish changelog."""
     try:
         # Validate environment variables
+        logger.info("Starting main function")
         validate_env_vars()
+        logger.info("Environment variables validated successfully")
 
         # Build prompt and generate changelog
+        logger.info("Building changelog prompt")
         prompt = build_prompt(
             commit_msg=os.getenv("COMMIT_MSG"),
             commit_diff=os.getenv("COMMIT_DIFF"),
@@ -393,43 +396,65 @@ def main():
             version=os.getenv("VERSION"),
             changelog_format=os.getenv("CHANGELOG_FORMAT")
         )
+        logger.info("Prompt built successfully")
+
+        logger.info("Generating changelog with LLM")
         markdown_out = generate_changelog(prompt)
+        logger.info("Changelog generated successfully")
 
         # Save Markdown output
         out_dir = Path("output")
         out_dir.mkdir(exist_ok=True, parents=True)
         (out_dir / "changelog.md").write_text(markdown_out, encoding="utf-8")
         logger.info(f"Markdown changelog written to {out_dir / 'changelog.md'}")
+        
         # Flush logs
         for handler in logger.handlers:
             handler.flush()
 
         # Publish to Confluence
+        logger.info("Preparing to publish to Confluence")
         auth = HTTPBasicAuth(os.getenv("CONF_USER"), os.getenv("CONF_TOKEN"))
-        page_url = publish_to_confluence(
-            title=f"{os.getenv('PROJECT_NAME')} – {os.getenv('VERSION')}",
-            html=markdown.markdown(markdown_out),
-            space=os.getenv("CONF_SPACE"),
-            domain=os.getenv("CONF_DOMAIN"),
-            auth=auth
-        )
+        logger.info("Auth object created")
+        
+        try:
+            page_url = publish_to_confluence(
+                title=f"{os.getenv('PROJECT_NAME')} – {os.getenv('VERSION')}",
+                html=markdown.markdown(markdown_out),
+                space=os.getenv("CONF_SPACE"),
+                domain=os.getenv("CONF_DOMAIN"),
+                auth=auth
+            )
+            logger.info("Confluence publishing completed")
+        except Exception as e:
+            logger.error(f"Error during Confluence publishing: {str(e)}")
+            logger.error("Full error details:", exc_info=True)
+            raise
+
         # Flush logs
         for handler in logger.handlers:
             handler.flush()
 
         # Render HTML
-        html_out = render_html(
-            markdown_content=markdown_out,
-            project_name=os.getenv("PROJECT_NAME"),
-            page_url=page_url,
-            commit_hash=os.getenv("COMMIT_HASH"),
-            version=os.getenv("VERSION")
-        )
-        if html_out:
-            (out_dir / "changelog.html").write_text(html_out, encoding="utf-8")
-            logger.info(f"HTML changelog written to {out_dir / 'changelog.html'}")
-        else:
-            logger.warning("Skipping HTML changelog due to rendering failure")
+        logger.info("Rendering HTML output")
+        try:
+            html_out = render_html(
+                markdown_content=markdown_out,
+                project_name=os.getenv("PROJECT_NAME"),
+                page_url=page_url,
+                commit_hash=os.getenv("COMMIT_HASH"),
+                version=os.getenv("VERSION")
+            )
+            if html_out:
+                (out_dir / "changelog.html").write_text(html_out, encoding="utf-8")
+                logger.info(f"HTML changelog written to {out_dir / 'changelog.html'}")
+            else:
+                logger.warning("Skipping HTML changelog due to rendering failure")
+        except Exception as e:
+            logger.error(f"Error during HTML rendering: {str(e)}")
+            logger.error("Full error details:", exc_info=True)
+            raise
+
         # Flush logs
         for handler in logger.handlers:
             handler.flush()
@@ -444,10 +469,16 @@ def main():
         sys.exit(0)
     except Exception as e:
         logger.error(f"Fatal error in main: {str(e)}")
+        logger.error("Full error details:", exc_info=True)
         # Ensure logs are flushed before exiting
         for handler in logger.handlers:
             handler.flush()
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"Unhandled exception: {str(e)}")
+        logger.error("Full error details:", exc_info=True)
+        sys.exit(1)
