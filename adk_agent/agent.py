@@ -59,15 +59,27 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
         commit_diff = "No diff provided"
     return f"""
     You are an AI assistant tasked with generating a changelog for the {project_name} project.
-    Changelog Format: {changelog_format}
     Version: {version}
     Commit Message: {commit_msg}
     Commit Diff:
     ```
     {commit_diff}
     ```
-    Generate a concise changelog entry summarizing the changes. Include key features, fixes, or improvements.
-    Output only the changelog content in Markdown format, without any additional explanations or metadata.
+
+    Generate a structured changelog with the following sections:
+    1. Date: Today's date
+    2. What's New: New features and improvements
+    3. Bug Fixes: Any bug fixes or issues resolved
+    4. How to Upgrade: Instructions for upgrading to this version
+    5. Deprecated: Any deprecated features or functionality
+
+    For each section:
+    - Use clear, concise bullet points
+    - Focus on user-facing changes
+    - Include relevant technical details where necessary
+    - If a section has no changes, mark it as "No changes in this version"
+
+    Output the changelog in Markdown format with proper headers and sections.
     """
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -204,7 +216,7 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
         template = env.get_template("changelog_template.html")
         html_output = template.render(
             project_name=project_name,
-            markdown_content=markdown.markdown(markdown_content),
+            markdown_content=markdown.markdown(markdown_content, extensions=['tables', 'fenced_code']),
             page_url=page_url or "Not published",
             commit_hash=commit_hash,
             current_date=version
@@ -213,7 +225,7 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
         return html_output
     except Exception as e:
         logger.warning(f"HTML rendering failed, using fallback template: {str(e)}")
-        # Fallback template
+        # Fallback template with improved styling
         fallback_template = """
         <!DOCTYPE html>
         <html lang="en">
@@ -222,10 +234,57 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{{ project_name }} Changelog</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                h1 { color: #333; }
-                .changelog { max-width: 800px; margin: auto; }
-                .meta { color: #666; font-size: 0.9em; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 40px;
+                    line-height: 1.6;
+                    color: #333;
+                }
+                .changelog { 
+                    max-width: 800px; 
+                    margin: auto;
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                h1 { 
+                    color: #2c3e50;
+                    border-bottom: 2px solid #eee;
+                    padding-bottom: 10px;
+                }
+                h2 {
+                    color: #34495e;
+                    margin-top: 30px;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 5px;
+                }
+                .meta { 
+                    color: #666; 
+                    font-size: 0.9em;
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 4px;
+                    margin-top: 20px;
+                }
+                ul {
+                    padding-left: 20px;
+                }
+                li {
+                    margin-bottom: 8px;
+                }
+                code {
+                    background: #f8f9fa;
+                    padding: 2px 4px;
+                    border-radius: 3px;
+                    font-family: monospace;
+                }
+                pre {
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                }
             </style>
         </head>
         <body>
@@ -233,11 +292,11 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
                 <h1>{{ project_name }} Changelog</h1>
                 {{ markdown_content | safe }}
                 <div class="meta">
-                    <p>Confluence Page: {{ page_url }}</p>
+                    <p><strong>Confluence Page:</strong> {{ page_url }}</p>
                     {% if commit_hash %}
-                    <p>Commit: {{ commit_hash }}</p>
+                    <p><strong>Commit:</strong> {{ commit_hash }}</p>
                     {% endif %}
-                    <p>Generated: {{ current_date }}</p>
+                    <p><strong>Generated:</strong> {{ current_date }}</p>
                 </div>
             </div>
         </body>
@@ -246,7 +305,7 @@ def render_html(markdown_content, project_name, page_url, commit_hash, version):
         template = Template(fallback_template)
         html_output = template.render(
             project_name=project_name,
-            markdown_content=markdown.markdown(markdown_content),
+            markdown_content=markdown.markdown(markdown_content, extensions=['tables', 'fenced_code']),
             page_url=page_url or "Not published",
             commit_hash=commit_hash,
             current_date=version
