@@ -169,3 +169,80 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
+def subtract_matrices(matrix1, matrix2):
+    """
+    Subtract two matrices of the same dimensions.
+    
+    Args:
+        matrix1 (list): First matrix as a 2D list
+        matrix2 (list): Second matrix as a 2D list
+        
+    Returns:
+        list: Resultant matrix after subtraction (matrix1 - matrix2)
+        
+    Raises:
+        ValueError: If matrices have different dimensions
+    """
+    # Check if matrices are empty
+    if not matrix1 or not matrix2:
+        raise ValueError("Matrices cannot be empty")
+    
+    # Check if matrices have the same dimensions
+    if len(matrix1) != len(matrix2) or len(matrix1[0]) != len(matrix2[0]):
+        raise ValueError("Matrices must have the same dimensions")
+    
+    # Initialize result matrix with zeros
+    result = [[0 for _ in range(len(matrix1[0]))] for _ in range(len(matrix1))]
+    
+    # Subtract corresponding elements
+    for i in range(len(matrix1)):
+        for j in range(len(matrix1[0])):
+            result[i][j] = matrix1[i][j] - matrix2[i][j]
+    
+    return result
+
+# Example usage of matrix subtraction
+matrix1 = [
+    [10, 20, 30],
+    [40, 50, 60],
+    [70, 80, 90]
+]
+
+matrix2 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+try:
+    result = subtract_matrices(matrix1, matrix2)
+    print("\nMatrix Subtraction Example:")
+    print("\nMatrix 1:")
+    for row in matrix1:
+        print(row)
+    print("\nMatrix 2:")
+    for row in matrix2:
+        print(row)
+    print("\nResultant Matrix (Matrix 1 - Matrix 2):")
+    for row in result:
+        print(row)
+except ValueError as e:
+    print(f"Error: {e}")
+
+# Example of invalid subtraction
+invalid_matrix1 = [
+    [1, 2],
+    [3, 4]
+]
+
+invalid_matrix2 = [
+    [5, 6, 7],
+    [8, 9, 10]
+]
+
+print("\nInvalid Matrix Subtraction Example:")
+try:
+    result = subtract_matrices(invalid_matrix1, invalid_matrix2)
+except ValueError as e:
+    print(f"Error: {e}")
+
