@@ -104,6 +104,8 @@ def publish_to_confluence(title, html, space, domain, auth):
     """Publish content to Confluence."""
     logger.info(f"Attempting to publish to Confluence: {title}")
     url = f"https://{domain}/rest/api/content"
+    logger.info(f"Confluence API URL: {url}")
+    logger.info(f"Confluence Space: {space}")
     headers = {"Content-Type": "application/json"}
     data = {
         "type": "page",
@@ -117,14 +119,28 @@ def publish_to_confluence(title, html, space, domain, auth):
         }
     }
     try:
+        logger.info(f"Making request to Confluence API...")
         response = requests.post(url, json=data, headers=headers, auth=auth)
         response.raise_for_status()
         page_id = response.json()["id"]
         page_url = f"https://{domain}/pages/viewpage.action?pageId={page_id}"
         logger.info(f"Successfully published to Confluence: {page_url}")
+        print(f"\n=== Confluence Page Created ===")
+        print(f"Title: {title}")
+        print(f"URL: {page_url}")
+        print(f"Space: {space}")
+        print(f"==============================\n")
         return page_url
     except Exception as e:
         logger.error(f"Confluence publishing failed: {str(e)}")
+        logger.error(f"Request URL: {url}")
+        logger.error(f"Request data: {data}")
+        print(f"\n=== Confluence Publishing Failed ===")
+        print(f"Error: {str(e)}")
+        print(f"Domain: {domain}")
+        print(f"Space: {space}")
+        print(f"Title: {title}")
+        print(f"===================================\n")
         return None
 
 def render_html(markdown_content, project_name, page_url, commit_hash, version):
