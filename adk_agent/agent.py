@@ -154,7 +154,7 @@ def get_existing_page(domain, space, auth):
         'type': 'page',
         'spaceKey': space,
         'title': 'Changelog',
-        'expand': 'body.storage'
+        'expand': 'body.storage,version'
     }
     
     try:
@@ -204,7 +204,12 @@ def publish_to_confluence(title, html, space, domain, auth):
         # Append to existing page
         current_content = existing_page['body']['storage']['value']
         new_content = f"{current_content}\n\n---\n\n{html}"
-        version = existing_page['version']['number'] + 1
+        
+        # Get current version number, default to 1 if not found
+        try:
+            version = existing_page.get('version', {}).get('number', 1) + 1
+        except (KeyError, AttributeError):
+            version = 2  # If version info is missing, start with version 2
         
         data = {
             "version": {"number": version},
