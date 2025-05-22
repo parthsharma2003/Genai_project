@@ -32,3 +32,4 @@ target = 3
 
 print(binary_search_matrix(matrix, target))  # Output: True
 print('changes 32')
+print('checking running')
