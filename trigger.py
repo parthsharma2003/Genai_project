@@ -330,3 +330,270 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
+def spiral_traverse_matrix(matrix):
+    """
+    Traverse a matrix in spiral order (clockwise from outer to inner).
+    
+    Args:
+        matrix (list): Input matrix as a 2D list
+        
+    Returns:
+        list: Elements of the matrix in spiral order
+        
+    Raises:
+        ValueError: If matrix is empty
+    """
+    if not matrix or not matrix[0]:
+        raise ValueError("Matrix cannot be empty")
+    
+    result = []
+    rows = len(matrix)
+    cols = len(matrix[0])
+    
+    # Define boundaries
+    top = 0
+    bottom = rows - 1
+    left = 0
+    right = cols - 1
+    
+    while top <= bottom and left <= right:
+        # Traverse right
+        for i in range(left, right + 1):
+            result.append(matrix[top][i])
+        top += 1
+        
+        # Traverse down
+        for i in range(top, bottom + 1):
+            result.append(matrix[i][right])
+        right -= 1
+        
+        # Traverse left
+        if top <= bottom:
+            for i in range(right, left - 1, -1):
+                result.append(matrix[bottom][i])
+            bottom -= 1
+        
+        # Traverse up
+        if left <= right:
+            for i in range(bottom, top - 1, -1):
+                result.append(matrix[i][left])
+            left += 1
+    
+    return result
+
+# Example usage of spiral traversal
+print("\nSpiral Traversal Examples:")
+
+# Example 1: 3x3 matrix
+matrix_3x3 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print_matrix(matrix_3x3, "3x3 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_3x3)
+print("Spiral traversal result:", spiral_result)
+
+# Example 2: 4x4 matrix
+matrix_4x4 = [
+    [1,  2,  3,  4],
+    [5,  6,  7,  8],
+    [9,  10, 11, 12],
+    [13, 14, 15, 16]
+]
+
+print_matrix(matrix_4x4, "4x4 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_4x4)
+print("Spiral traversal result:", spiral_result)
+
+# Example 3: Rectangular matrix (3x4)
+matrix_3x4 = [
+    [1,  2,  3,  4],
+    [5,  6,  7,  8],
+    [9,  10, 11, 12]
+]
+
+print_matrix(matrix_3x4, "3x4 Matrix")
+spiral_result = spiral_traverse_matrix(matrix_3x4)
+print("Spiral traversal result:", spiral_result)
+
+# Example 4: Empty matrix (error case)
+try:
+    empty_matrix = []
+    spiral_result = spiral_traverse_matrix(empty_matrix)
+except ValueError as e:
+    print(f"\nError with empty matrix: {e}")
+
+def transpose_matrix(matrix):
+    """
+    Transpose a matrix (convert rows to columns and columns to rows).
+    
+    Args:
+        matrix (list): Input matrix as a 2D list
+        
+    Returns:
+        list: Transposed matrix
+        
+    Raises:
+        ValueError: If matrix is empty
+    """
+    if not matrix or not matrix[0]:
+        raise ValueError("Matrix cannot be empty")
+    
+    # Get dimensions
+    rows = len(matrix)
+    cols = len(matrix[0])
+    
+    # Create a new matrix with swapped dimensions
+    transposed = [[0 for _ in range(rows)] for _ in range(cols)]
+    
+    # Fill the transposed matrix
+    for i in range(rows):
+        for j in range(cols):
+            transposed[j][i] = matrix[i][j]
+    
+    return transposed
+
+# Example usage of matrix transpose
+print("\nMatrix Transpose Examples:")
+
+# Example 1: Square matrix (3x3)
+matrix_3x3 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+print_matrix(matrix_3x3, "Original 3x3 Matrix")
+transposed_3x3 = transpose_matrix(matrix_3x3)
+print_matrix(transposed_3x3, "Transposed 3x3 Matrix")
+
+# Example 2: Rectangular matrix (2x4)
+matrix_2x4 = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8]
+]
+
+print_matrix(matrix_2x4, "Original 2x4 Matrix")
+transposed_2x4 = transpose_matrix(matrix_2x4)
+print_matrix(transposed_2x4, "Transposed 2x4 Matrix (4x2)")
+
+# Example 3: Single row matrix
+matrix_1x3 = [
+    [1, 2, 3]
+]
+
+print_matrix(matrix_1x3, "Original 1x3 Matrix")
+transposed_1x3 = transpose_matrix(matrix_1x3)
+print_matrix(transposed_1x3, "Transposed 1x3 Matrix (3x1)")
+
+# Example 4: Empty matrix (error case)
+try:
+    empty_matrix = []
+    transposed = transpose_matrix(empty_matrix)
+except ValueError as e:
+    print(f"\nError with empty matrix: {e}")
+
+def create_adjacency_matrix(graph, directed=False):
+    """
+    Create an adjacency matrix from a graph representation.
+    
+    Args:
+        graph (dict): Graph representation where keys are nodes and values are lists of connected nodes
+        directed (bool): Whether the graph is directed (True) or undirected (False)
+        
+    Returns:
+        list: Adjacency matrix as a 2D list
+        
+    Example:
+        graph = {
+            'A': ['B', 'C'],
+            'B': ['A', 'D'],
+            'C': ['A', 'D'],
+            'D': ['B', 'C']
+        }
+        # Creates:
+        # [[0, 1, 1, 0],
+        #  [1, 0, 0, 1],
+        #  [1, 0, 0, 1],
+        #  [0, 1, 1, 0]]
+    """
+    if not graph:
+        raise ValueError("Graph cannot be empty")
+    
+    # Get all unique nodes and sort them for consistent ordering
+    nodes = sorted(graph.keys())
+    n = len(nodes)
+    
+    # Create node to index mapping
+    node_to_index = {node: i for i, node in enumerate(nodes)}
+    
+    # Initialize adjacency matrix with zeros
+    adj_matrix = [[0 for _ in range(n)] for _ in range(n)]
+    
+    # Fill the adjacency matrix
+    for node, neighbors in graph.items():
+        i = node_to_index[node]
+        for neighbor in neighbors:
+            j = node_to_index[neighbor]
+            adj_matrix[i][j] = 1
+            if not directed:
+                adj_matrix[j][i] = 1  # For undirected graphs, make it symmetric
+    
+    return adj_matrix
+
+# Example usage of adjacency matrix creation
+print("\nAdjacency Matrix Examples:")
+
+# Example 1: Undirected graph
+undirected_graph = {
+    'A': ['B', 'C'],
+    'B': ['A', 'D'],
+    'C': ['A', 'D'],
+    'D': ['B', 'C']
+}
+
+print("\nUndirected Graph:")
+for node, neighbors in undirected_graph.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_undirected = create_adjacency_matrix(undirected_graph)
+print_matrix(adj_matrix_undirected, "Adjacency Matrix (Undirected)")
+
+# Example 2: Directed graph
+directed_graph = {
+    'A': ['B', 'C'],
+    'B': ['D'],
+    'C': ['D'],
+    'D': []
+}
+
+print("\nDirected Graph:")
+for node, neighbors in directed_graph.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_directed = create_adjacency_matrix(directed_graph, directed=True)
+print_matrix(adj_matrix_directed, "Adjacency Matrix (Directed)")
+
+# Example 3: Graph with self-loops
+graph_with_loops = {
+    'A': ['A', 'B'],
+    'B': ['A', 'B', 'C'],
+    'C': ['B', 'C']
+}
+
+print("\nGraph with Self-loops:")
+for node, neighbors in graph_with_loops.items():
+    print(f"{node} -> {neighbors}")
+
+adj_matrix_loops = create_adjacency_matrix(graph_with_loops)
+print_matrix(adj_matrix_loops, "Adjacency Matrix (with Self-loops)")
+
+# Example 4: Empty graph (error case)
+try:
+    empty_graph = {}
+    adj_matrix = create_adjacency_matrix(empty_graph)
+except ValueError as e:
+    print(f"\nError with empty graph: {e}")
+

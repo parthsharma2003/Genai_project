@@ -7,7 +7,9 @@ on:
   push:
     branches: [ '*' ]  # Trigger on push to any branch
   pull_request:
-    types: [opened, synchronize, reopened, closed]  # Trigger on PR events
+    types: [opened, synchronize, reopened, closed, merged]  # Added merged type
+  pull_request_target:
+    types: [opened, synchronize, reopened, closed, merged]  # Added merged type
 
 jobs:
   Explore-GitHub-Actions:
@@ -24,17 +26,23 @@ jobs:
       CHANGELOG_FORMAT: "markdown"
       STAGE_NAME:       "github-actions"
       VERSION:          ${{ github.sha }}  # Using commit SHA as version
-      BRANCH_NAME:      ${{ github.ref_name }}  # Add branch name
+      BRANCH_NAME:      ${{ github.head_ref || github.ref_name }}  # Use head_ref for PRs, ref_name for pushes
       EVENT_TYPE:       ${{ github.event_name }}  # Add event type (push/pull_request)
+      PR_NUMBER:        ${{ github.event.pull_request.number }}  # PR number if applicable
+      PR_TITLE:         ${{ github.event.pull_request.title }}  # PR title if applicable
+      PR_BODY:          ${{ github.event.pull_request.body }}  # PR description if applicable
+      MERGE_COMMIT:     ${{ github.event.pull_request.merge_commit_sha }}  # Merge commit SHA if applicable
 
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
       - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
       - run: whoami
       - run: hostname
-      - run: echo "🔎 The name of your branch is ${{ github.ref_name }} and your repository is ${{ github.repository }}."
+      - run: echo "🔎 The name of your branch is ${{ github.head_ref || github.ref_name }} and your repository is ${{ github.repository }}."
       - name: Check out repository code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches and tags
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
       - run: echo "🖥️ The workflow is now ready to test your code on the runner."
       - name: List files in the repository
@@ -56,29 +64,49 @@ jobs:
       - name: Gather commit metadata
         id: metadata
         run: |
-          echo "COMMIT_HASH=${GITHUB_SHA}" >> $GITHUB_ENV
-          echo "COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_ENV
-          echo "BRANCH_NAME=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-          echo "EVENT_TYPE=${GITHUB_EVENT_NAME}" >> $GITHUB_ENV
+          # For pull requests, use PR information
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "COMMIT_HASH=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+            echo "COMMIT_AUTHOR=${{ github.event.pull_request.user.login }}" >> $GITHUB_ENV
+            echo "COMMIT_MSG=${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+            echo "PR_TITLE=${{ github.event.pull_request.title }}" >> $GITHUB_ENV
+            echo "PR_BODY=${{ github.event.pull_request.body }}" >> $GITHUB_ENV
+            echo "MERGE_COMMIT=${{ github.event.pull_request.merge_commit_sha }}" >> $GITHUB_ENV
+          else
+            # For direct pushes
+            echo "COMMIT_HASH=${GITHUB_SHA}" >> $GITHUB_ENV
+            echo "COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_ENV
+            echo "COMMIT_MSG<<EOF" >> $GITHUB_ENV
+            git log -1 --pretty=%B >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
 
-          echo "COMMIT_MSG<<EOF" >> $GITHUB_ENV
-          git log -1 --pretty=%B >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}" >> $GITHUB_ENV
+          echo "EVENT_TYPE=${GITHUB_EVENT_NAME}" >> $GITHUB_ENV
 
           # Get the diff between the current commit and its parent
           if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
-            # If it's a shallow clone, fetch the parent commit
             git fetch --unshallow
           fi
-          echo "COMMIT_DIFF<<EOF" >> $GITHUB_ENV
-          git diff ${{ github.sha }}^! >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # For PRs, get diff between PR branch and base branch
+            echo "COMMIT_DIFF<<EOF" >> $GITHUB_ENV
+            git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            # For direct pushes
+            echo "COMMIT_DIFF<<EOF" >> $GITHUB_ENV
+            git diff ${{ github.sha }}^! >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
 
       - name: Run changelog agent
         run: python adk_agent/agent.py
 
       - name: Upload changelog artifacts
-        uses: actions/upload-artifact@v4      # updated to v4 for better reliability
+        uses: actions/upload-artifact@v4
         with:
           name: changelog
           path: |
