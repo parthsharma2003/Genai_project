@@ -597,3 +597,62 @@ try:
 except ValueError as e:
     print(f"\nError with empty graph: {e}")
 
+def union_matrices(matrix1, matrix2):
+    """
+    Perform union operation on two matrices.
+    The union combines elements from both matrices, keeping unique values.
+    
+    Args:
+        matrix1 (list): First matrix as a 2D list
+        matrix2 (list): Second matrix as a 2D list
+        
+    Returns:
+        list: Resultant matrix containing unique elements from both matrices
+        
+    Raises:
+        ValueError: If matrices are empty
+    """
+    # Check if matrices are empty
+    if not matrix1 or not matrix2:
+        raise ValueError("Matrices cannot be empty")
+    
+    # Convert matrices to sets of tuples for easy union operation
+    set1 = {tuple(row) for row in matrix1}
+    set2 = {tuple(row) for row in matrix2}
+    
+    # Perform union operation
+    union_set = set1.union(set2)
+    
+    # Convert back to list of lists
+    result = [list(row) for row in union_set]
+    
+    return result
+
+# Example usage of matrix union
+matrix1 = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9]
+]
+
+matrix2 = [
+    [1, 2, 3],
+    [10, 11, 12],
+    [7, 8, 9]
+]
+
+try:
+    result = union_matrices(matrix1, matrix2)
+    print("\nMatrix Union Example:")
+    print("\nMatrix 1:")
+    for row in matrix1:
+        print(row)
+    print("\nMatrix 2:")
+    for row in matrix2:
+        print(row)
+    print("\nResultant Matrix (Union of Matrix 1 and Matrix 2):")
+    for row in result:
+        print(row)
+except ValueError as e:
+    print(f"Error: {e}")
+
