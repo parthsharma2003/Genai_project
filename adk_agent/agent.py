@@ -3,7 +3,8 @@ import sys
 import logging
 from pathlib import Path
 import markdown
-import datetime
+from datetime import datetime
+import pytz
 import google.generativeai as genai
 from requests.auth import HTTPBasicAuth
 import requests
@@ -22,7 +23,8 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-current_date = datetime.now().strftime("%Y-%m-%d")  # E
+
+current_date = datetime.now(pytz.timezone("Asia/Kolkata")).strftime("%Y-%m-%d")  # E
 
 # Debug: Confirm log file setup and test write
 logger.info("Starting agent.py, log directory: %s", log_dir)
