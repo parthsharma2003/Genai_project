@@ -3,6 +3,7 @@ import sys
 import logging
 from pathlib import Path
 import markdown
+import datetime
 import google.generativeai as genai
 from requests.auth import HTTPBasicAuth
 import requests
@@ -21,6 +22,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+current_date = datetime.now().strftime("%Y-%m-%d")  # E
 
 # Debug: Confirm log file setup and test write
 logger.info("Starting agent.py, log directory: %s", log_dir)
@@ -74,7 +76,7 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     ```
 
     Generate a structured changelog with the following sections, using emojis and symbols:
-    1. 📅 Date: Today's date
+    1. 📅 Date: {current_date}
     2. 🌿 Branch: The branch where changes were made
     3. ✨ What's New: New features and improvements
     4. 🐛 Bug Fixes: Any bug fixes or issues resolved
