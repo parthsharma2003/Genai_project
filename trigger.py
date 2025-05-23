@@ -32,37 +32,6 @@ target = 3
 
 print(binary_search_matrix(matrix, target))  # Output: True
 
-def add_matrices(matrix1, matrix2):
-    """
-    Add two matrices of the same dimensions.
-    
-    Args:
-        matrix1 (list): First matrix as a 2D list
-        matrix2 (list): Second matrix as a 2D list
-        
-    Returns:
-        list: Resultant matrix after addition
-        
-    Raises:
-        ValueError: If matrices have different dimensions
-    """
-    # Check if matrices are empty
-    if not matrix1 or not matrix2:
-        raise ValueError("Matrices cannot be empty")
-    
-    # Check if matrices have the same dimensions
-    if len(matrix1) != len(matrix2) or len(matrix1[0]) != len(matrix2[0]):
-        raise ValueError("Matrices must have the same dimensions")
-    
-    # Initialize result matrix with zeros
-    result = [[0 for _ in range(len(matrix1[0]))] for _ in range(len(matrix1))]
-    
-    # Add corresponding elements
-    for i in range(len(matrix1)):
-        for j in range(len(matrix1[0])):
-            result[i][j] = matrix1[i][j] + matrix2[i][j]
-    
-    return result
 
 # Example usage of matrix addition
 matrix1 = [
