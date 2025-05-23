@@ -2,6 +2,7 @@ def binary_search_matrix(matrix, target):
     if not matrix or not matrix[0]:
         return False
     print(matrix)
+    print(target)
     rows = len(matrix)
     cols = len(matrix[0])
 
