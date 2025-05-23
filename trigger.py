@@ -656,65 +656,6 @@ try:
 except ValueError as e:
     print(f"Error: {e}")
 
-def matrix_bfs(matrix, start_row=0, start_col=0):
-    """
-    Perform Breadth-First Search (BFS) traversal on a matrix.
-    Treats the matrix as a graph where each cell is connected to its adjacent cells.
-    
-    Args:
-        matrix (list): Input matrix as a 2D list
-        start_row (int): Starting row index (default: 0)
-        start_col (int): Starting column index (default: 0)
-        
-    Returns:
-        list: Elements of the matrix in BFS order
-        
-    Raises:
-        ValueError: If matrix is empty or start position is invalid
-    """
-    if not matrix or not matrix[0]:
-        raise ValueError("Matrix cannot be empty")
-    
-    rows = len(matrix)
-    cols = len(matrix[0])
-    
-    # Check if start position is valid
-    if not (0 <= start_row < rows and 0 <= start_col < cols):
-        raise ValueError("Invalid start position")
-    
-    # Initialize visited matrix and result list
-    visited = [[False for _ in range(cols)] for _ in range(rows)]
-    result = []
-    
-    # Define possible movements (up, right, down, left)
-    directions = [(-1, 0), (0, 1), (1, 0), (0, -1)]
-    
-    # Initialize queue with start position
-    queue = [(start_row, start_col)]
-    visited[start_row][start_col] = True
-    
-    while queue:
-        # Get current position
-        row, col = queue.pop(0)
-        result.append(matrix[row][col])
-        
-        # Check all adjacent cells
-        for dr, dc in directions:
-            new_row, new_col = row + dr, col + dc
-            
-            # Check if the new position is valid and not visited
-            if (0 <= new_row < rows and 
-                0 <= new_col < cols and 
-                not visited[new_row][new_col]):
-                
-                queue.append((new_row, new_col))
-                visited[new_row][new_col] = True
-    
-    return result
-
-# Example usage of matrix BFS
-print("\nMatrix BFS Examples:")
-
 # Example 1: 3x3 matrix
 matrix_3x3 = [
     [1, 2, 3],
@@ -723,9 +664,6 @@ matrix_3x3 = [
 ]
 
 print_matrix(matrix_3x3, "3x3 Matrix")
-bfs_result = matrix_bfs(matrix_3x3)
-print("BFS traversal result:", bfs_result)
-
 # Example 2: 4x4 matrix with different start position
 matrix_4x4 = [
     [1,  2,  3,  4],
@@ -735,8 +673,6 @@ matrix_4x4 = [
 ]
 
 print_matrix(matrix_4x4, "4x4 Matrix")
-bfs_result = matrix_bfs(matrix_4x4, start_row=1, start_col=1)
-print("BFS traversal result starting from (1,1):", bfs_result)
 
 # Example 3: Rectangular matrix (3x4)
 matrix_3x4 = [
@@ -746,12 +682,17 @@ matrix_3x4 = [
 ]
 
 print_matrix(matrix_3x4, "3x4 Matrix")
-bfs_result = matrix_bfs(matrix_3x4)
-print("BFS traversal result:", bfs_result)
 
 # Example 4: Invalid start position (error case)
 try:
-    invalid_start = matrix_bfs(matrix_3x3, start_row=5, start_col=5)
+    invalid_start_matrix = [
+        [1, 2, 3],
+        [4, 5, 6]
+    ]
+    start_row = 2  # Invalid row index
+    start_col = 1
+    if start_row >= len(invalid_start_matrix) or start_col >= len(invalid_start_matrix[0]):
+        raise ValueError("Invalid start position")
 except ValueError as e:
     print(f"\nError with invalid start position: {e}")
 
