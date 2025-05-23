@@ -567,7 +567,7 @@ try:
 except ValueError as e:
     print(f"\nError with empty graph: {e}")
 
-def dummy_function(parameter1)
+def dummy_function(parameter1):
     print("Adding this function as dummy")
     print(parameter1)
 
