@@ -5,12 +5,10 @@ from pathlib import Path
 import markdown
 import google.generativeai as genai
 from requests.auth import HTTPBasicAuth
-from datetime import date
 import requests
 from jinja2 import Environment, FileSystemLoader, Template
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-today  = date.today()
 # Set up logging
 log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True, parents=True)
@@ -76,7 +74,7 @@ def build_prompt(commit_msg, commit_diff, project_name, version, changelog_forma
     ```
 
     Generate a structured changelog with the following sections, using emojis and symbols:
-    1. 📅 Date: {today.strftime("%Y-%m-%d")}
+    1. 📅 Date: Today's date
     2. 🌿 Branch: The branch where changes were made
     3. ✨ What's New: New features and improvements
     4. 🐛 Bug Fixes: Any bug fixes or issues resolved
