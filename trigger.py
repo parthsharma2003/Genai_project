@@ -567,6 +567,12 @@ try:
 except ValueError as e:
     print(f"\nError with empty graph: {e}")
 
+def dummy_function(parameter1)
+    print("Adding this function as dummy")
+    print(parameter1)
+
+dummy_function("testing")
+
 def union_matrices(matrix1, matrix2):
     """
     Perform union operation on two matrices.
